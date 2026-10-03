@@ -119,8 +119,9 @@ export default function Home() {
     "Exploring ideas, technology, Nepal and the stories behind them.";
 
   const heroImage =
-    settings?.heroImage ||
-    (latestPost?.thumbnail ?? "");
+    typeof settings?.heroImage === "string" && settings.heroImage.trim()
+      ? settings.heroImage.trim()
+      : latestPost?.thumbnail ?? "";
 
   const fade = (delay: number) =>
     reduced
@@ -511,8 +512,7 @@ export default function Home() {
 
       {/* ============================ COMMUNITY CTA ============================ */}
       <section className="mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
-        <Reveal>
-          <div className="grain relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-ember/15 via-card to-gold/10 px-7 py-12 text-center sm:px-12">
+        <Reveal>              <div className="grain relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-ember/15 via-card to-gold/10 px-7 py-12 text-center sm:px-12">
             <HeartHandshake className="mx-auto size-8 text-ember" />
             <h2 className="font-display mx-auto mt-5 max-w-2xl text-3xl leading-tight font-semibold text-foreground text-balance sm:text-4xl">
               What should I make next?
