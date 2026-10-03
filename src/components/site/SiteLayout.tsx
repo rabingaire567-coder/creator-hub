@@ -5,7 +5,7 @@ import { Navbar } from "@/components/site/Navbar";
 import { Footer } from "@/components/site/Footer";
 import { BackToTop } from "@/components/site/BackToTop";
 import { useSearch } from "@/components/SearchProvider";
-import { useAccentColors } from "@/lib/accents";
+import { useAccentColors, useSettingsTheme } from "@/lib/accents";
 
 /**
  * Public site shell: sticky navbar, routed content, footer, back-to-top and
@@ -15,6 +15,7 @@ export function SiteLayout() {
   const settings = useQuery(api.site.getSiteSettings);
   const { openSearch } = useSearch();
   useAccentColors(settings);
+  useSettingsTheme(settings?.theme);
 
   return (
     <div className="flex min-h-screen flex-col">

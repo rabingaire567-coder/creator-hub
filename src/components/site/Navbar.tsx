@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation } from "react-router";
 import { api } from "@/convex/_generated/api";
 import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, Menu, Search, X } from "lucide-react";
+import { ArrowUpRight, LayoutDashboard, Menu, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -149,6 +149,19 @@ export function Navbar({ onSearch }: { onSearch: () => void }) {
 
           <ThemeToggle />
 
+          {/* Owner studio — routes through RequireAuth to /auth with returnTo */}
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="hidden rounded-full border-ember/40 text-ember hover:border-ember hover:bg-ember/10 sm:inline-flex"
+          >
+            <Link to="/admin">
+              <LayoutDashboard className="size-3.5" />
+              Studio
+            </Link>
+          </Button>
+
           {/* Follow */}
           {followLinks.length > 0 && (
             <DropdownMenu>
@@ -245,6 +258,14 @@ export function Navbar({ onSearch }: { onSearch: () => void }) {
                 >
                   Contact
                   <ArrowUpRight className="size-4 opacity-40" />
+                </NavLink>
+                <NavLink
+                  to="/admin"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center justify-between rounded-xl px-4 py-3 text-lg font-medium text-ember hover:bg-ember/10"
+                >
+                  Studio
+                  <LayoutDashboard className="size-4 opacity-60" />
                 </NavLink>
                 {followLinks.length > 0 && (
                   <div className="flex flex-wrap gap-2 px-1">

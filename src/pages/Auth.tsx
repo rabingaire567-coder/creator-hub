@@ -26,7 +26,7 @@ interface AuthProps {
 
 function resolveRedirectAfterAuth(
   returnTo: string | null,
-  fallback = "/dashboard",
+  fallback = "/admin",
 ) {
   if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
     return returnTo;
@@ -110,13 +110,23 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="relative min-h-screen flex flex-col overflow-hidden">
+      <div className="warm-glow pointer-events-none absolute inset-0" />
+      <div className="grain pointer-events-none absolute inset-0" />
 
-      
+      <Button
+        variant="ghost"
+        size="sm"
+        className="absolute top-4 left-4 z-10 rounded-full text-muted-foreground hover:text-ember"
+        onClick={() => navigate("/")}
+      >
+        ← Back to site
+      </Button>
+
       {/* Auth Content */}
-      <div className="flex-1 flex items-center justify-center">
+      <div className="relative flex-1 flex items-center justify-center p-4">
         <div className="flex items-center justify-center h-full flex-col">
-        <Card className="min-w-[350px] pb-0 border shadow-md">
+        <Card className="min-w-[350px] border-border/70 bg-card/85 pb-0 shadow-[0_24px_60px_-30px_rgba(0,0,0,0.6)] backdrop-blur">
           {step === "signIn" ? (
             <>
               <CardHeader className="text-center">
@@ -130,7 +140,9 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                       onClick={() => navigate("/")}
                     />
                   </div>
-                <CardTitle className="text-xl">Get Started</CardTitle>
+                <CardTitle className="font-display text-xl">
+                  Welcome back
+                </CardTitle>
                 <CardDescription>
                   Enter your email to log in or sign up
                 </CardDescription>
@@ -164,7 +176,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                     </Button>
                   </div>
                   {error && (
-                    <p className="mt-2 text-sm text-red-500">{error}</p>
+                    <p className="mt-2 text-sm text-destructive">{error}</p>
                   )}
                   
                   <div className="mt-4">
@@ -196,7 +208,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
           ) : (
             <>
               <CardHeader className="text-center mt-4">
-                <CardTitle>Check your email</CardTitle>
+                <CardTitle className="font-display">Check your email</CardTitle>
                 <CardDescription>
                   We've sent a code to {step.email}
                 </CardDescription>
@@ -230,7 +242,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                     </InputOTP>
                   </div>
                   {error && (
-                    <p className="mt-2 text-sm text-red-500 text-center">
+                    <p className="mt-2 text-sm text-destructive text-center">
                       {error}
                     </p>
                   )}

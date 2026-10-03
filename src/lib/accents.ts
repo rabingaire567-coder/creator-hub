@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTheme } from "next-themes";
 
 interface AccentSource {
   accent1?: string;
@@ -36,4 +37,22 @@ export function useAccentColors(settings: AccentSource | undefined) {
       for (const [, cssVar] of map) root.style.removeProperty(cssVar);
     };
   }, [settings]);
+}
+
+/**
+ * Applies the admin-configured default theme — but only while the visitor
+ * hasn't picked one themselves (next-themes persists that choice), so the
+ * site-wide setting never stomps a personal preference.
+ */
+export function useSettingsTheme(theme: string | undefined) {
+  const { setTheme } = useTheme();
+  useEffect(() => {
+    if (theme !== "dark" && theme !== "light" && theme !== "system") return;
+    try {
+      if (window.localStorage.getItem("theme")) return;
+    } catch {
+      // storage unavailable — applying the default is fine
+    }
+    setTheme(theme);
+  }, [theme, setTheme]);
 }
