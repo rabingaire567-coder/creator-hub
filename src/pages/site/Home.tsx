@@ -118,6 +118,10 @@ export default function Home() {
     settings?.heroHeading ||
     "Exploring ideas, technology, Nepal and the stories behind them.";
 
+  const heroImage =
+    settings?.heroImage ||
+    (latestPost?.thumbnail ?? "");
+
   const fade = (delay: number) =>
     reduced
       ? {}
@@ -223,16 +227,29 @@ export default function Home() {
                 </MediaThumb>
               </Link>
             ) : (
-              <div className="grain relative flex aspect-video rotate-[-1.5deg] items-center justify-center rounded-3xl border border-border bg-gradient-to-br from-ember/30 via-card to-clay/30 shadow-[0_40px_90px_-40px_rgba(0,0,0,0.85)]">
-                <div className="text-center">
-                  <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-background/70 text-2xl font-bold text-ember shadow-xl">
-                    RG
+              <MediaThumb
+                src={heroImage}
+                alt="Rabin Gaire"
+                className="aspect-video rounded-3xl border border-border shadow-[0_40px_90px_-40px_rgba(0,0,0,0.85)]"
+              >
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                <span className="absolute inset-0 flex items-center justify-center">
+                  <div className="flex size-16 items-center justify-center rounded-full bg-background/80 text-ember shadow-xl transition-transform duration-500 group-hover:scale-110">
+                    <Play className="size-6 fill-current ml-0.5" />
                   </div>
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    New stories are on the way
+                </span>
+                <span className="absolute top-4 left-4 rounded-full bg-ember px-3 py-1 text-[11px] font-bold tracking-wider text-white uppercase">
+                  Hero
+                </span>
+                <div className="absolute right-4 bottom-4 left-4">
+                  <p className="line-clamp-1 text-sm font-semibold text-white drop-shadow">
+                    {currentProject ? currentProject.name : "Cinematic visual"}
+                  </p>
+                  <p className="mt-0.5 text-xs text-white/70">
+                    {heroImage ? "Hero image" : "Cinematic visual"}
                   </p>
                 </div>
-              </div>
+              </MediaThumb>
             )}
 
             {/* Floating chips */}
