@@ -241,14 +241,6 @@ export default function Home() {
                 <span className="absolute top-4 left-4 rounded-full bg-ember px-3 py-1 text-[11px] font-bold tracking-wider text-white uppercase">
                   Hero
                 </span>
-                <div className="absolute right-4 bottom-4 left-4">
-                  <p className="line-clamp-1 text-sm font-semibold text-white drop-shadow">
-                    {currentProject ? currentProject.name : "Cinematic visual"}
-                  </p>
-                  <p className="mt-0.5 text-xs text-white/70">
-                    {heroImage ? "Hero image" : "Cinematic visual"}
-                  </p>
-                </div>
               </MediaThumb>
             )}
 
