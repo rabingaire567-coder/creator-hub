@@ -1,7 +1,28 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
-import { ensureArray, safeJsonParse } from "./lib";
+import { requireAdmin, safeGet } from "./lib";
+import type { Doc } from "./_generated/dataModel";
+
+// ---- helpers ----
+
+const PAGE_SIZE = 20;
+const MAX_DOCS = 500;
+
+function paginate<T>(items: T[], page: number | undefined) {
+  const total = items.length;
+  const start = ((page ?? 1) - 1) * PAGE_SIZE;
+  const paged = start >= total ? [] : items.slice(start, start + PAGE_SIZE);
+  return { items: paged, total };
+}
+
+function textOf(post: {
+  title: string;
+  excerpt: string;
+  description: string;
+  categories: string[];
+}): string {
+  return `${post.title} ${post.excerpt} ${post.description} ${post.categories.join(" ")}`.toLowerCase();
+}
 
 // ---- Queries ----
 
@@ -11,86 +32,84 @@ export const listPosts = query({
     category: v.optional(v.string()),
     tag: v.optional(v.string()),
     featuredOnly: v.optional(v.boolean()),
+    // Admin: include drafts as well as published items
+    includeDrafts: v.optional(v.boolean()),
     sort: v.optional(v.string()),
     page: v.optional(v.number()),
     perPage: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    let q = ctx.db.query("posts");
+    const all = await ctx.db.query("posts").take(MAX_DOCS);
 
+    let items = all;
     if (args.featuredOnly) {
-      q = q.filter((doc) => doc.featured === true);
-    } else {
-      q = q.filter((doc) => doc.published === true);
+      items = items.filter((post) => post.featured === true);
+    } else if (!args.includeDrafts) {
+      items = items.filter((post) => post.published === true);
     }
 
     if (args.category) {
-      q = q.filter((doc) =>
-        (doc.categories as string[] | undefined)?.includes(args.category) ?? false,
-      );
+      items = items.filter((post) => post.categories.includes(args.category!));
     }
     if (args.tag) {
-      q = q.filter((doc) => (doc.tags as string[] | undefined)?.includes(args.tag) ?? false);
+      items = items.filter((post) => post.tags.includes(args.tag!));
     }
     if (args.filter) {
       const term = args.filter.toLowerCase();
-      q = q.filter((doc) => {
-        const text = `${doc.title ?? ""} ${(doc.excerpt ?? "") as string} ${(doc.description ?? "") as string} ${((doc.categories as string[] | undefined)?.join(" ") ?? "")}`
-          .toLowerCase();
-        return text.includes(term);
-      });
+      items = items.filter((post) => textOf(post).includes(term));
     }
 
-    if (args.sort === "views") q = q.order("desc");
-    else if (args.sort === "createdAt") q = q.order("desc");
-    else q = q.order("desc");
+    items.sort((a, b) => {
+      if (args.sort === "views") return (b.views ?? 0) - (a.views ?? 0);
+      if (args.sort === "title") return a.title.localeCompare(b.title);
+      return (b.createdAt ?? 0) - (a.createdAt ?? 0);
+    });
 
-    const all = await q.order("desc").take(300);
-    const total = all.length;
-    const start = (args.page ?? 1 - 1) * 20;
-    const items = start >= total ? [] : all.slice(start, start + 20);
-    return { items, total };
+    return paginate(items, args.page);
   },
 });
 
 export const listFeaturedPosts = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx
-      .db.query("posts")
-      .filter((doc) => (doc.published as boolean | undefined) === true && (doc.featured as boolean | undefined) === true)
-      .order("desc")
-      .take(6);
+    const all = await ctx.db.query("posts").take(MAX_DOCS);
+    return all
+      .filter((post) => post.published === true && post.featured === true)
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+      .slice(0, 6);
   },
 });
 
 export const listLatestPosts = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx
-      .db.query("posts")
-      .filter((doc) => (doc.published as boolean | undefined) === true)
-      .order("desc")
-      .take(6);
+    const all = await ctx.db.query("posts").take(MAX_DOCS);
+    return all
+      .filter((post) => post.published === true)
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+      .slice(0, 6);
   },
 });
 
 export const getPostById = query({
-  args: { id: v.id("posts") },
+  // Raw string on purpose: URL params can contain malformed ids — safeGet
+  // returns null so the page can show its not-found state instead of throwing.
+  args: { id: v.string() },
   handler: async (ctx, args) => {
-    const post = await ctx.db.get(args.id);
+    const post = await safeGet<Doc<"posts">>(ctx.db, args.id);
     if (!post) return null;
-    if (!((post.published as boolean | undefined) === true) && !post.publishedAt) return null;
-    return post as any;
+    if (post.published !== true && !post.publishedAt) return null;
+    return post;
   },
 });
 
 export const getPostByYoutubeId = query({
   args: { youtubeId: v.string() },
   handler: async (ctx, args) => {
-    return await ctx
-      .db.query("posts")
-      .filter((doc) => (doc.youtubeId as string | undefined) === args.youtubeId && (doc.published as boolean | undefined) === true)
+    return await ctx.db
+      .query("posts")
+      .filter((q) => q.eq(q.field("youtubeId"), args.youtubeId))
+      .filter((q) => q.eq(q.field("published"), true))
       .first();
   },
 });
@@ -98,11 +117,14 @@ export const getPostByYoutubeId = query({
 export const getPostBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, args) => {
-    return await ctx
-      .db.query("posts")
-      .filter((doc) => (doc.title as string | undefined)?.toLowerCase() === args.slug.toLowerCase())
-      .filter((doc) => (doc.published as boolean | undefined) === true)
-      .first();
+    const all = await ctx.db.query("posts").take(MAX_DOCS);
+    return (
+      all.find(
+        (post) =>
+          post.published === true &&
+          post.title.toLowerCase() === args.slug.toLowerCase(),
+      ) ?? null
+    );
   },
 });
 
@@ -123,8 +145,7 @@ export const createPost = mutation({
     status: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const youtubeId = args.youtubeUrl ? extractYouTubeId(args.youtubeUrl) : undefined;
     const now = Date.now();
     const id = await ctx.db.insert("posts", {
@@ -139,7 +160,7 @@ export const createPost = mutation({
       tags: args.tags,
       featured: args.featured ?? false,
       published: args.published ?? false,
-      status: args.status ?? "draft",
+      status: args.status ?? (args.published ? "published" : "draft"),
       publishedAt: args.published ? now : undefined,
       createdAt: now,
       updatedAt: now,
@@ -167,19 +188,23 @@ export const updatePost = mutation({
     }),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const record = await ctx.db.get(args.id);
     if (!record) throw new Error("Post not found");
-    if (args.patch.youtubeUrl && !args.patch.youtubeId) {
-      const youtubeId = extractYouTubeId(args.patch.youtubeUrl);
-      args.patch.youtubeId = youtubeId;
+    const youtubeId =
+      args.patch.youtubeUrl !== undefined && args.patch.youtubeUrl !== null
+        ? extractYouTubeId(args.patch.youtubeUrl)
+        : undefined;
+    const patch: Partial<typeof record> = { ...args.patch };
+    if (args.patch.youtubeUrl !== undefined) {
+      patch.youtubeId = youtubeId;
     }
-    await ctx.db.patch(args.id, {
-      ...args.patch,
-      updatedAt: Date.now(),
-      publishedAt: args.patch.published ? Date.now() : record.publishedAt,
-    });
+    patch.updatedAt = Date.now();
+    if (args.patch.published !== undefined) {
+      patch.publishedAt = args.patch.published ? Date.now() : undefined;
+      patch.status = args.patch.published ? "published" : "draft";
+    }
+    await ctx.db.patch(args.id, patch);
     return true;
   },
 });
@@ -187,8 +212,7 @@ export const updatePost = mutation({
 export const deletePost = mutation({
   args: { id: v.id("posts") },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     await ctx.db.delete(args.id);
     return true;
   },
@@ -197,13 +221,13 @@ export const deletePost = mutation({
 export const setPostPublished = mutation({
   args: { id: v.id("posts"), published: v.boolean() },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const record = await ctx.db.get(args.id);
     if (!record) throw new Error("Post not found");
     await ctx.db.patch(args.id, {
       published: args.published,
       publishedAt: args.published ? Date.now() : undefined,
+      status: args.published ? "published" : "draft",
     });
     return true;
   },
@@ -212,8 +236,7 @@ export const setPostPublished = mutation({
 export const setPostFeatured = mutation({
   args: { id: v.id("posts"), featured: v.boolean() },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const record = await ctx.db.get(args.id);
     if (!record) throw new Error("Post not found");
     await ctx.db.patch(args.id, { featured: args.featured });

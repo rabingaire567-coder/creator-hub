@@ -1,6 +1,18 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { requireAdmin } from "./lib";
+
+// ---- helpers ----
+
+const PAGE_SIZE = 20;
+const MAX_DOCS = 500;
+
+function paginate<T>(items: T[], page: number | undefined) {
+  const total = items.length;
+  const start = ((page ?? 1) - 1) * PAGE_SIZE;
+  const paged = start >= total ? [] : items.slice(start, start + PAGE_SIZE);
+  return { items: paged, total };
+}
 
 // ---- Queries ----
 
@@ -11,15 +23,13 @@ export const listCommunitySubmissions = query({
     perPage: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    let q = ctx.db.query("communitySubmissions").order("desc");
+    const all = await ctx.db.query("communitySubmissions").take(MAX_DOCS);
+    let items = all;
     if (args.status) {
-      q = q.filter((doc) => doc.status === args.status);
+      items = items.filter((doc) => doc.status === args.status);
     }
-    const all = await q.order("desc").take(300);
-    const total = all.length;
-    const start = (args.page ?? 1 - 1) * 20;
-    const items = start >= total ? [] : all.slice(start, start + 20);
-    return { items, total };
+    items.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+    return paginate(items, args.page);
   },
 });
 
@@ -27,6 +37,14 @@ export const getSubmissionById = query({
   args: { id: v.id("communitySubmissions") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.id);
+  },
+});
+
+export const countNewSubmissions = query({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("communitySubmissions").take(1000);
+    return all.filter((doc) => doc.status === "new").length;
   },
 });
 
@@ -56,8 +74,7 @@ export const createSubmission = mutation({
 export const updateSubmission = mutation({
   args: { id: v.id("communitySubmissions"), status: v.string() },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const record = await ctx.db.get(args.id);
     if (!record) throw new Error("Submission not found");
     await ctx.db.patch(args.id, { status: args.status });

@@ -1,6 +1,28 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { requireAdmin, safeGet } from "./lib";
+import type { Doc } from "./_generated/dataModel";
+
+// ---- helpers ----
+
+const PAGE_SIZE = 20;
+const MAX_DOCS = 500;
+
+function paginate<T>(items: T[], page: number | undefined) {
+  const total = items.length;
+  const start = ((page ?? 1) - 1) * PAGE_SIZE;
+  const paged = start >= total ? [] : items.slice(start, start + PAGE_SIZE);
+  return { items: paged, total };
+}
+
+function textOf(project: {
+  name: string;
+  description: string;
+  category: string;
+  technologies: string[];
+}): string {
+  return `${project.name} ${project.description} ${project.category} ${project.technologies.join(" ")}`.toLowerCase();
+}
 
 // ---- Queries ----
 
@@ -10,48 +32,57 @@ export const listProjects = query({
     category: v.optional(v.string()),
     status: v.optional(v.string()),
     featuredOnly: v.optional(v.boolean()),
+    // Admin: include drafts as well as published items
+    includeDrafts: v.optional(v.boolean()),
     page: v.optional(v.number()),
     perPage: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    let q = ctx.db.query("projects");
+    const all = await ctx.db.query("projects").take(MAX_DOCS);
 
+    let items = all;
     if (args.featuredOnly) {
-      q = q.filter((doc) => (doc.featured as boolean | undefined) === true);
-    } else {
-      q = q.filter((doc) => (doc.published as boolean | undefined) === true);
+      items = items.filter((project) => project.featured === true);
+    } else if (!args.includeDrafts) {
+      items = items.filter((project) => project.published === true);
     }
 
     if (args.category) {
-      q = q.filter((doc) => doc.category === args.category);
+      items = items.filter((project) => project.category === args.category);
     }
     if (args.status) {
-      q = q.filter((doc) => doc.status === args.status);
+      items = items.filter((project) => project.status === args.status);
     }
     if (args.filter) {
       const term = args.filter.toLowerCase();
-      q = q.filter((doc) => {
-        const text = `${doc.name ?? ""} ${(doc.description ?? "") as string} ${doc.category ?? ""} ${((doc.technologies as string[] | undefined)?.join(" ") ?? "")}`
-          .toLowerCase();
-        return text.includes(term);
-      });
+      items = items.filter((project) => textOf(project).includes(term));
     }
 
-    const all = await q.order("desc").take(300);
-    const total = all.length;
-    const start = (args.page ?? 1 - 1) * 20;
-    const items = start >= total ? [] : all.slice(start, start + 20);
-    return { items, total };
+    items.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+    return paginate(items, args.page);
   },
 });
 
 export const getProjectById = query({
-  args: { id: v.id("projects") },
+  // Raw string: URL params may contain malformed ids (see safeGet).
+  args: { id: v.string() },
   handler: async (ctx, args) => {
-    const project = await ctx.db.get(args.id);
+    const project = await safeGet<Doc<"projects">>(ctx.db, args.id);
     if (!project) return null;
-    if (!project.published) return null;
-    return project as any;
+    if (project.published !== true) return null;
+    return project;
+  },
+});
+
+export const listFeaturedProjects = query({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("projects").take(MAX_DOCS);
+    return all
+      .filter((project) => project.published === true && project.featured === true)
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+      .slice(0, 6);
   },
 });
 
@@ -72,8 +103,7 @@ export const createProject = mutation({
     published: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const now = Date.now();
     const id = await ctx.db.insert("projects", {
       name: args.name,
@@ -112,8 +142,7 @@ export const updateProject = mutation({
     }),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const record = await ctx.db.get(args.id);
     if (!record) throw new Error("Project not found");
     await ctx.db.patch(args.id, {
@@ -127,8 +156,7 @@ export const updateProject = mutation({
 export const deleteProject = mutation({
   args: { id: v.id("projects") },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     await ctx.db.delete(args.id);
     return true;
   },
@@ -137,8 +165,7 @@ export const deleteProject = mutation({
 export const setProjectPublished = mutation({
   args: { id: v.id("projects"), published: v.boolean() },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const record = await ctx.db.get(args.id);
     if (!record) throw new Error("Project not found");
     await ctx.db.patch(args.id, { published: args.published });
@@ -149,8 +176,7 @@ export const setProjectPublished = mutation({
 export const setProjectFeatured = mutation({
   args: { id: v.id("projects"), featured: v.boolean() },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const record = await ctx.db.get(args.id);
     if (!record) throw new Error("Project not found");
     await ctx.db.patch(args.id, { featured: args.featured });

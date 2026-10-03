@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { requireAdmin } from "./lib";
 
 // ---- Queries ----
 
@@ -30,8 +30,7 @@ export const getTagBySlug = query({
 export const createTag = mutation({
   args: { name: v.string(), slug: v.string(), color: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const existing = await ctx.db
       .query("tags")
       .filter((q) => q.eq(q.field("name"), args.name))
@@ -50,8 +49,7 @@ export const createTag = mutation({
 export const renameTag = mutation({
   args: { id: v.id("tags"), name: v.string(), slug: v.string(), color: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const record = await ctx.db.get(args.id);
     if (!record) throw new Error("Tag not found");
     await ctx.db.patch(args.id, {
@@ -66,8 +64,7 @@ export const renameTag = mutation({
 export const deleteTag = mutation({
   args: { id: v.id("tags") },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     await ctx.db.delete(args.id);
     return true;
   },
@@ -76,8 +73,7 @@ export const deleteTag = mutation({
 export const setTagEnabled = mutation({
   args: { id: v.id("tags"), enabled: v.boolean() },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const record = await ctx.db.get(args.id);
     if (!record) throw new Error("Tag not found");
     await ctx.db.patch(args.id, { enabled: args.enabled });

@@ -1,0 +1,39 @@
+import { useEffect } from "react";
+
+interface AccentSource {
+  accent1?: string;
+  accent2?: string;
+  accent3?: string;
+  accent4?: string;
+  accent5?: string;
+}
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+/**
+ * Applies the admin-configurable warm accent colours to the document root so
+ * the whole product (public site + dashboard) restyles instantly. Invalid or
+ * missing values keep the current theme colours.
+ */
+export function useAccentColors(settings: AccentSource | undefined) {
+  useEffect(() => {
+    if (!settings) return;
+    const root = document.documentElement;
+    const map: Array<[keyof AccentSource, string]> = [
+      ["accent1", "--ember"],
+      ["accent2", "--gold"],
+      ["accent3", "--clay"],
+      ["accent4", "--sage"],
+      ["accent5", "--dusk"],
+    ];
+    for (const [key, cssVar] of map) {
+      const value = settings[key];
+      if (typeof value === "string" && HEX.test(value)) {
+        root.style.setProperty(cssVar, value);
+      }
+    }
+    return () => {
+      for (const [, cssVar] of map) root.style.removeProperty(cssVar);
+    };
+  }, [settings]);
+}

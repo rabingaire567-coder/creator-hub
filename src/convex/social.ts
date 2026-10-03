@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { requireAdmin } from "./lib";
 
 // ---- Queries ----
 
@@ -34,8 +34,7 @@ export const setSocialLink = mutation({
     order: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const existing = await ctx.db
       .query("socialLinks")
       .filter((q) => q.eq(q.field("platform"), args.platform))
@@ -63,8 +62,7 @@ export const setSocialLink = mutation({
 export const deleteSocialLink = mutation({
   args: { platform: v.string() },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const record = await ctx.db
       .query("socialLinks")
       .filter((q) => q.eq(q.field("platform"), args.platform))
@@ -79,17 +77,16 @@ export const deleteSocialLink = mutation({
 export const reorderSocialLinks = mutation({
   args: { ids: v.array(v.id("socialLinks")) },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
-    const validIds = args.ids.filter((id) => {
-      const rec = ctx.db.get(id);
-      return (rec as { platform?: string } | null)?.platform;
-    });
+    await requireAdmin(ctx);
+    const validIds: (typeof args.ids)[number][] = [];
+    for (const id of args.ids) {
+      const rec = await ctx.db.get(id);
+      if (rec) validIds.push(id);
+    }
     if (validIds.length === 0) return true;
-    const updates = validIds.map((id, index) =>
-      ctx.db.patch(id, { order: index }),
-    );
-    await Promise.all(updates);
+    for (let index = 0; index < validIds.length; index++) {
+      await ctx.db.patch(validIds[index], { order: index });
+    }
     return true;
   },
 });

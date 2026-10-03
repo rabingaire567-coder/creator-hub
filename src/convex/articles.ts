@@ -1,7 +1,27 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
-import { ensureArray, safeJsonParse } from "./lib";
+import { requireAdmin } from "./lib";
+
+// ---- helpers ----
+
+const PAGE_SIZE = 20;
+const MAX_DOCS = 500;
+
+function paginate<T>(items: T[], page: number | undefined) {
+  const total = items.length;
+  const start = ((page ?? 1) - 1) * PAGE_SIZE;
+  const paged = start >= total ? [] : items.slice(start, start + PAGE_SIZE);
+  return { items: paged, total };
+}
+
+function textOf(article: {
+  title: string;
+  excerpt: string;
+  category: string;
+  tags: string[];
+}): string {
+  return `${article.title} ${article.excerpt} ${article.category} ${article.tags.join(" ")}`.toLowerCase();
+}
 
 // ---- Queries ----
 
@@ -11,41 +31,51 @@ export const listArticles = query({
     tag: v.optional(v.string()),
     filter: v.optional(v.string()),
     sort: v.optional(v.string()),
+    featuredOnly: v.optional(v.boolean()),
+    // Admin: include drafts as well as published items
+    includeDrafts: v.optional(v.boolean()),
     page: v.optional(v.number()),
     perPage: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    let q = ctx.db.query("articles");
+    const all = await ctx.db.query("articles").take(MAX_DOCS);
+
+    let items = all;
+    if (args.featuredOnly) {
+      items = items.filter((article) => article.featured === true);
+    } else if (!args.includeDrafts) {
+      items = items.filter((article) => article.published === true);
+    }
 
     if (args.category) {
-      q = q.filter((doc) => doc.category === args.category);
+      items = items.filter((article) => article.category === args.category);
     }
     if (args.tag) {
-      q = q.filter((doc) => doc.tags.includes(args.tag));
+      items = items.filter((article) => article.tags.includes(args.tag!));
     }
     if (args.filter) {
       const term = args.filter.toLowerCase();
-      q = q.filter((doc) => {
-        const text = `${doc.title} ${doc.excerpt} ${doc.category} ${doc.tags.join(" ")}`
-          .toLowerCase();
-        return text.includes(term);
-      });
+      items = items.filter((article) => textOf(article).includes(term));
     }
 
-    const all = await q.order("desc").take(200);
-    const total = all.length;
-    const start = (args.page ?? 1 - 1) * 20;
-    const items = start >= total ? [] : all.slice(start, start + 20);
-    return { items, total };
+    items.sort(
+      (a, b) =>
+        (b.publishedAt ?? b.createdAt ?? 0) - (a.publishedAt ?? a.createdAt ?? 0),
+    );
+
+    return paginate(items, args.page);
   },
 });
 
 export const getArticleBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, args) => {
-    const article = await ctx.db.query("articles").filter((doc) => doc.slug === args.slug).first();
-    if (!article) return null;
-    return article as any;
+    const all = await ctx.db.query("articles").take(MAX_DOCS);
+    return (
+      all.find(
+        (article) => article.published === true && article.slug === args.slug,
+      ) ?? null
+    );
   },
 });
 
@@ -54,10 +84,12 @@ export const listRelatedArticles = query({
   handler: async (ctx, args) => {
     const article = await ctx.db.get(args.articleId);
     if (!article) return [];
-    const qs = await ctx.db.query("articles");
-    const all = await qs.order("desc").collect();
+    const all = await ctx.db.query("articles").take(MAX_DOCS);
     const matching = all.filter(
-      (a) => a._id !== args.articleId && a.tags.some((t) => article.tags.includes(t)),
+      (a) =>
+        a._id !== args.articleId &&
+        a.published === true &&
+        a.tags.some((tag) => article.tags.includes(tag)),
     );
     return matching.slice(0, args.limit ?? 3);
   },
@@ -81,8 +113,7 @@ export const createArticle = mutation({
     published: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const now = Date.now();
     const id = await ctx.db.insert("articles", {
       title: args.title,
@@ -122,14 +153,16 @@ export const updateArticle = mutation({
     }),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const record = await ctx.db.get(args.id);
     if (!record) throw new Error("Article not found");
-    await ctx.db.patch(args.id, {
-      ...args.patch,
-      publishedAt: args.patch.published ? Date.now() : record.publishedAt,
-    });
+    const patch: Partial<typeof record> = { ...args.patch };
+    if (args.patch.published !== undefined) {
+      patch.publishedAt = args.patch.published
+        ? (args.patch.publishedAt ?? Date.now())
+        : undefined;
+    }
+    await ctx.db.patch(args.id, patch);
     return true;
   },
 });
@@ -137,8 +170,7 @@ export const updateArticle = mutation({
 export const deleteArticle = mutation({
   args: { id: v.id("articles") },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     await ctx.db.delete(args.id);
     return true;
   },
@@ -147,8 +179,7 @@ export const deleteArticle = mutation({
 export const setArticlePublished = mutation({
   args: { id: v.id("articles"), published: v.boolean() },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const record = await ctx.db.get(args.id);
     if (!record) throw new Error("Article not found");
     await ctx.db.patch(args.id, {
@@ -162,8 +193,7 @@ export const setArticlePublished = mutation({
 export const setArticleFeatured = mutation({
   args: { id: v.id("articles"), featured: v.boolean() },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (userId === null) throw new Error("Unauthorized");
+    await requireAdmin(ctx);
     const record = await ctx.db.get(args.id);
     if (!record) throw new Error("Article not found");
     await ctx.db.patch(args.id, { featured: args.featured });
