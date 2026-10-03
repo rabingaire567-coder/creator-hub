@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Mail, Users } from "lucide-react";
@@ -41,12 +41,19 @@ const FILTERS = ["all", "new", "reviewed", "archived"] as const;
 export default function AdminCommunity() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [page, setPage] = useState(1);
-  const [detail, setDetail] = useState<SubmissionDoc | null>(null);
+  const [detailId, setDetailId] = useState<Id<"communitySubmissions"> | null>(
+    null,
+  );
 
   const submissions = useQuery(api.community.listCommunitySubmissions, {
     status: filter === "all" ? undefined : filter,
     page,
   });
+  // Live document behind the open dialog so status changes reflect instantly.
+  const detail = useQuery(
+    api.community.getSubmissionById,
+    detailId ? { id: detailId } : "skip",
+  );
   const updateSubmission = useMutation(api.community.updateSubmission);
 
   const items = submissions?.items ?? [];
@@ -125,7 +132,7 @@ export default function AdminCommunity() {
                   <TableRow
                     key={submission._id}
                     className="cursor-pointer border-border/50"
-                    onClick={() => setDetail(submission)}
+                    onClick={() => setDetailId(submission._id)}
                   >
                     <TableCell>
                       <p className="font-medium">{submission.name}</p>
@@ -195,7 +202,15 @@ export default function AdminCommunity() {
         </div>
       )}
 
-      <Dialog open={detail !== null} onOpenChange={(open) => !open && setDetail(null)}>
+      <Dialog
+        open={detailId !== null}
+        onOpenChange={(open) => !open && setDetailId(null)}
+      >
+        {detail === undefined && detailId !== null && (
+          <DialogContent className="sm:max-w-lg">
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          </DialogContent>
+        )}
         {detail && (
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>

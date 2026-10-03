@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { requireAdmin } from "./lib";
+import { isAdmin, requireAdmin } from "./lib";
 
 // ---- helpers ----
 
@@ -40,11 +40,15 @@ export const listArticles = query({
   handler: async (ctx, args) => {
     const all = await ctx.db.query("articles").take(MAX_DOCS);
 
+    // Drafts never leave the server unless the caller is the site owner, and
+    // "featured only" narrows the published set instead of replacing it.
+    const includeDrafts = args.includeDrafts === true && (await isAdmin(ctx));
     let items = all;
+    if (!includeDrafts) {
+      items = items.filter((article) => article.published === true);
+    }
     if (args.featuredOnly) {
       items = items.filter((article) => article.featured === true);
-    } else if (!args.includeDrafts) {
-      items = items.filter((article) => article.published === true);
     }
 
     if (args.category) {
@@ -114,6 +118,11 @@ export const createArticle = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
+    const duplicate = await ctx.db
+      .query("articles")
+      .filter((q) => q.eq(q.field("slug"), args.slug))
+      .first();
+    if (duplicate) throw new Error("An article with this slug already exists.");
     const now = Date.now();
     const id = await ctx.db.insert("articles", {
       title: args.title,
@@ -156,6 +165,15 @@ export const updateArticle = mutation({
     await requireAdmin(ctx);
     const record = await ctx.db.get(args.id);
     if (!record) throw new Error("Article not found");
+    const nextSlug = args.patch.slug;
+    if (nextSlug && nextSlug !== record.slug) {
+      const duplicate = await ctx.db
+        .query("articles")
+        .filter((q) => q.eq(q.field("slug"), nextSlug))
+        .first();
+      if (duplicate)
+        throw new Error("An article with this slug already exists.");
+    }
     const patch: Partial<typeof record> = { ...args.patch };
     if (args.patch.published !== undefined) {
       patch.publishedAt = args.patch.published

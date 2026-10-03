@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/table";
 import { AdminPageHeader, StatusPill, confirmAction, runAction } from "@/admin/shared";
 import { PROJECT_CATEGORIES, PROJECT_STATUSES } from "@/lib/constants";
-import { formatDate, truncate } from "@/lib/format";
+import { truncate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type ProjectDoc = Doc<"projects">;
@@ -496,8 +496,7 @@ export default function AdminProjects() {
         </CardContent>
       </Card>
 
-      <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-        <span>{formatDate(items[0]?.createdAt)}</span>
+      <div className="mt-4 flex items-center justify-end text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
           <Button
             variant="outline"

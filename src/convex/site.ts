@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { requireAdmin } from "./lib";
+import { isAdmin as isAdminAllowed, requireAdmin } from "./lib";
 import type { SiteSettings } from "./schema";
 
 // ---- Defaults (used when no settings row exists yet) ----
@@ -78,6 +78,15 @@ export const getSiteSettings = query({
     const settings = await ctx.db.query("siteSettings").first();
     return settings ?? (DEFAULT_SETTINGS as SiteSettings);
   },
+});
+
+/**
+ * True when the current visitor may run admin actions. Gates the studio UI
+ * so non-owners get a clean access-denied screen instead of failing queries.
+ */
+export const isAdmin = query({
+  args: {},
+  handler: async (ctx) => await isAdminAllowed(ctx),
 });
 
 export const getAllTags = query({

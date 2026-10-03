@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { api } from "@/convex/_generated/api";
 import { useQuery } from "convex/react";
-import { ArrowLeft, ArrowRight, BookOpen, FileSearch } from "lucide-react";
+import { ArrowLeft, ArrowRight, FileSearch } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/site/PageHeader";

@@ -16,7 +16,12 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <header className="relative overflow-hidden border-b border-border">
+    <header
+      className={cn(
+        "relative overflow-hidden border-b border-border",
+        className,
+      )}
+    >
       <div className="warm-glow pointer-events-none absolute inset-0 opacity-70" />
       <div className="grain pointer-events-none absolute inset-0" />
       <div className="relative mx-auto w-full max-w-6xl px-4 pt-32 pb-14 sm:px-6 sm:pt-36">

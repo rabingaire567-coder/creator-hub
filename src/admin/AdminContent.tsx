@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/table";
 import { AdminPageHeader, StatusPill, confirmAction, runAction } from "@/admin/shared";
 import { CONTENT_CATEGORIES } from "@/lib/constants";
-import { formatDate, timeAgo, truncate } from "@/lib/format";
+import { formatDate, truncate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type PostDoc = Doc<"posts">;
@@ -517,10 +517,6 @@ export default function AdminContent() {
           />
         )}
       </Dialog>
-
-      <p className="mt-6 text-xs text-muted-foreground">
-        Last change {timeAgo(items[0]?.updatedAt ?? items[0]?.createdAt)}
-      </p>
     </div>
   );
 }

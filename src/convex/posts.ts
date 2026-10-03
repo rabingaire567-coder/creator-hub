@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { requireAdmin, safeGet } from "./lib";
+import { isAdmin, requireAdmin, safeGet } from "./lib";
 import type { Doc } from "./_generated/dataModel";
 
 // ---- helpers ----
@@ -41,11 +41,15 @@ export const listPosts = query({
   handler: async (ctx, args) => {
     const all = await ctx.db.query("posts").take(MAX_DOCS);
 
+    // Drafts never leave the server unless the caller is the site owner, and
+    // "featured only" narrows the published set instead of replacing it.
+    const includeDrafts = args.includeDrafts === true && (await isAdmin(ctx));
     let items = all;
+    if (!includeDrafts) {
+      items = items.filter((post) => post.published === true);
+    }
     if (args.featuredOnly) {
       items = items.filter((post) => post.featured === true);
-    } else if (!args.includeDrafts) {
-      items = items.filter((post) => post.published === true);
     }
 
     if (args.category) {

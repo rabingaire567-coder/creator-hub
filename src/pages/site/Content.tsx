@@ -17,7 +17,7 @@ import { ContentCard } from "@/components/site/ContentCard";
 import { EmptyState } from "@/components/site/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePageMeta } from "@/lib/seo";
-import { CONTENT_CATEGORIES, toneForCategory } from "@/lib/constants";
+import { CONTENT_CATEGORIES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;

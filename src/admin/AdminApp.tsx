@@ -7,6 +7,13 @@ import { useAccentColors, useSettingsTheme } from "@/lib/accents";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
+  Card,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -25,6 +32,7 @@ import {
   PanelTop,
   Plus,
   Settings,
+  ShieldAlert,
   Share2,
   Tag,
   Users,
@@ -113,12 +121,49 @@ export default function AdminApp() {
 
   const newMessages = useQuery(api.contact.countNewContactMessages) ?? 0;
   const newSubmissions = useQuery(api.community.countNewSubmissions) ?? 0;
+  const isOwner = useQuery(api.site.isAdmin);
   const entries = navEntries(newMessages, newSubmissions);
 
   const handleSignOut = async () => {
     await signOut();
     navigate("/");
   };
+
+  // A second signed-in account (after the owner email is set) gets a clean
+  // access-denied screen instead of failing admin queries downstream.
+  if (isOwner === false) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="warm-glow pointer-events-none absolute inset-0" />
+        <Card className="relative w-full max-w-md border-border/70 bg-card/85 text-center">
+          <CardHeader>
+            <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-ember/15">
+              <ShieldAlert className="size-5 text-ember" />
+            </div>
+            <CardTitle className="font-display text-xl">
+              Owner access only
+            </CardTitle>
+            <CardDescription>
+              The studio is limited to the owner account
+              {settings?.adminEmail ? ` (${settings.adminEmail})` : ""}. Sign out
+              and sign in with the owner email to continue.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex-col gap-2">
+            <Button
+              className="w-full rounded-full"
+              onClick={handleSignOut}
+            >
+              <LogOut className="size-4" /> Sign out
+            </Button>
+            <Button asChild variant="ghost" className="w-full rounded-full">
+              <Link to="/">Back to site</Link>
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-background">

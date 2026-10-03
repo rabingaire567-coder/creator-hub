@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation } from "react-router";
 import { api } from "@/convex/_generated/api";
 import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, LayoutDashboard, Menu, Search, X } from "lucide-react";
+import { ArrowUpRight, LayoutDashboard, Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

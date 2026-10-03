@@ -67,5 +67,11 @@ editable at runtime from **Admin → Settings → Appearance**.
 
 ```bash
 bunx convex dev --once && bunx tsc -b --noEmit   # types + Convex codegen
+bun test                                          # unit tests (tests/*.test.ts)
+bun run lint                                      # eslint (see note below)
 bun run build                                     # production build (CI does this)
 ```
+
+> Note: `bun run lint` still reports the template's `react-hooks` pattern
+debt (`set-state-in-effect`) and a few intentional `any`s in
+`src/convex/lib.ts`; neither gates CI, which runs typecheck, tests and build.

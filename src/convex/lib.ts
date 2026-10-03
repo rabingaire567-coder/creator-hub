@@ -17,7 +17,8 @@ type AdminCtx = {
  *
  * - Signed-out visitors are always rejected.
  * - If `siteSettings.adminEmail` is unset (fresh install), any signed-in
- *   account may write — this is the one-time bootstrap window.
+ *   account **with an email** may write — the one-time bootstrap window.
+ *   Anonymous/guest sessions never get write access.
  * - Once the owner sets their email in Admin → Website Settings, only that
  *   account (matching email) may write.
  */
@@ -26,11 +27,29 @@ export async function requireAdmin(ctx: AdminCtx): Promise<string> {
   if (userId === null) throw new Error("Unauthorized");
   const settings = await ctx.db.query("siteSettings").first();
   const adminEmail = settings?.adminEmail?.trim().toLowerCase();
-  if (!adminEmail) return userId; // bootstrap window
   const user = await ctx.db.get(userId);
   const email = (user as { email?: string } | null)?.email?.trim().toLowerCase();
+  if (!adminEmail) {
+    // Bootstrap window — but only real email accounts, never anonymous ones.
+    if (email) return userId;
+    throw new Error("Unauthorized");
+  }
   if (email && email === adminEmail) return userId;
   throw new Error("Unauthorized");
+}
+
+/**
+ * Non-throwing predicate version of `requireAdmin`, for queries that should
+ * quietly degrade (e.g. ignoring `includeDrafts` for non-owners) instead of
+ * crashing the UI through an error boundary.
+ */
+export async function isAdmin(ctx: AdminCtx): Promise<boolean> {
+  try {
+    await requireAdmin(ctx);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
