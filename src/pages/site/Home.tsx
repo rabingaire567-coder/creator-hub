@@ -92,6 +92,11 @@ export default function Home() {
   const socialLinks = useQuery(api.social.listSocialLinks);
   const reduced = useReducedMotion();
 
+  // Single source of truth: the admin homepage writes stats/aboutSections/
+  // timeline as JSON strings (site.ts) and reads/writes the hero/intro/buttons
+  // as plain strings. The public homepage decodes exactly what the admin writes
+  // and falls back to the same defaults, so saved homepage values always
+  // surface on the live site.
   const stats = parseJsonArray<Stat>(settings?.stats, DEFAULT_STATS);
 
   const featuredItems =
