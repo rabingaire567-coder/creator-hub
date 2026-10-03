@@ -34,7 +34,7 @@ const Contact = lazy(() => import("./pages/site/Contact.tsx"));
 const SiteNotFound = lazy(() => import("./pages/site/NotFound.tsx"));
 
 // ---------------------------------------------------------------------------
-// Auth + admin studio
+// Auth + admin studio (all screens live in src/admin/*)
 // ---------------------------------------------------------------------------
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const AdminApp = lazy(() => import("./admin/AdminApp.tsx"));
