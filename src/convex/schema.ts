@@ -14,7 +14,7 @@ export const roleValidator = v.union(
   v.literal(ROLES.USER),
   v.literal(ROLES.MEMBER),
 );
-export type Role = Infer<typeof roleValidator>;
+type Role = Infer<typeof roleValidator>;
 
 // ---------------------------------------------------------------------------
 // Website / site settings (single row)
@@ -27,7 +27,7 @@ const siteSettingsTable = defineTable({
   accent1: v.string(), // primary warm colour (e.g. #E0703A)
   accent2: v.string(), // secondary warm colour (e.g. #E8A33D)
   accent3: v.string(), // third warm colour (e.g. #C97B2E)
-  accent4: v.string(), // fourth warm colour (e.g. #7A9E6E)
+  accent4: v.string(), // fourth warm colour (e.g. #C97B2E)
   accent5: v.string(), // fifth warm colour (e.g. #6E8BAC)
   accentText: v.string(), // warm text colour for light/warm backgrounds
   bgHero: v.string(), // hero background colour
@@ -50,11 +50,9 @@ const siteSettingsTable = defineTable({
   heroCtaSecondaryHref: v.string(),
   heroImage: v.optional(v.string()),
   introduction: v.string(),
-  // JSON array of { title, body } — editable About page sections
-  aboutSections: v.optional(v.string()),
-  // JSON array of { label, note } — editable About timeline
-  timeline: v.optional(v.string()),
   stats: v.string(), // JSON array of { label, value, suffix? }
+  aboutSections: v.optional(v.string()), // JSON array of { title, body }
+  timeline: v.optional(v.string()), // JSON array of { label, note }
   featuredContent: v.optional(v.string()), // JSON id[] of featured posts
   currentProject: v.optional(v.string()), // JSON id of the current project
   siteUrl: v.optional(v.string()),
@@ -64,6 +62,24 @@ const siteSettingsTable = defineTable({
   adminEmail: v.optional(v.string()),
   createdAt: v.optional(v.number()),
 }).index("by_title", ["title"]);
+
+// ---------------------------------------------------------------------------
+// Uploaded homepage images (server-side store for the hero image)
+// ---------------------------------------------------------------------------
+const homepageImagesTable = defineTable({
+  // The permanent image reference. Uploaded by the admin via
+  // `api.site.uploadHomepageImage`; a base64 data URL so public visitors on
+  // any device render the same picture with no storage credentials needed.
+  url: v.string(),
+  name: v.string(),
+  mimeType: v.string(),
+  size: v.number(),
+  // Kept so the admin can remove a chosen file from the file list.
+  fileId: v.string(),
+  createdAt: v.number(),
+})
+  .index("by_site_id", ["siteId"])
+  .index("by_createdAt", ["createdAt"]);
 
 // ---------------------------------------------------------------------------
 // Tags
@@ -202,6 +218,7 @@ export default defineSchema(
 
     // content tables
     siteSettings: siteSettingsTable,
+    homepageImages: homepageImagesTable,
     tags: tagsTable,
     posts: postsTable,
     articles: articlesTable,
@@ -216,6 +233,7 @@ export default defineSchema(
 );
 
 export type SiteSettings = Infer<(typeof siteSettingsTable)["validator"]>;
+export type HomepageImage = Infer<(typeof homepageImagesTable)["validator"]>;
 export type Tag = Infer<(typeof tagsTable)["validator"]>;
 export type Post = Infer<(typeof postsTable)["validator"]>;
 export type Article = Infer<(typeof articlesTable)["validator"]>;
