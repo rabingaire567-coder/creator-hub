@@ -1,9 +1,7 @@
 import { v } from "convex/values";
-import { query, mutation, action } from "./_generated/server";
+import { query, mutation } from "./_generated/server";
 import { requireAdmin } from "./lib";
 import type { SiteSettings } from "./schema";
-import type { AdminCtx } from "./lib";
-import type { GenericActionCtx } from "./_generated/server";
 
 // ---- Defaults (used when no settings row exists yet) ----
 export const DEFAULT_SETTINGS: Omit<SiteSettings, "createdAt"> = {
@@ -173,59 +171,62 @@ export const deleteSiteSettings = mutation({
 });
 
 // ---- Homepage image upload ----
+//
+// The image is saved as a base64 data URL inside a Convex document (the
+// public homepage renders `siteSettings.heroImage` as-is), so the raw file is
+// capped well below Convex's 1 MiB document/value limit: 600 KB raw becomes
+// ~800 KB of base64, leaving room for the rest of the document.
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MiB
+const MAX_IMAGE_BYTES = 600 * 1024;
 
-function validateFile(file: File): string | null {
-  if (!ALLOWED_TYPES.includes(file.type as (typeof ALLOWED_TYPES)[number])) {
-    return "Unsupported file type. Only JPG, PNG and WebP are allowed.";
-  }
-  if (file.size > MAX_BYTES) {
-    return "File is too large. Maximum size is 5 MiB.";
-  }
-  return null;
+function dataUrlByteLength(dataUrl: string): number {
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0) return 0;
+  return Math.floor(((dataUrl.length - comma - 1) * 3) / 4);
 }
 
 export const getHomepageImage = query({
   args: { fileId: v.string() },
   handler: async (ctx, args) => {
-    const record = await ctx.db.get(args.fileId as Id<"homepageImages">);
+    const record = await ctx.db.get(args.fileId as string as never);
     return record ?? null;
   },
 });
 
-export const uploadHomepageImage = action({
+/**
+ * Stores an uploaded homepage image and returns its permanent reference.
+ * The admin client reads + compresses the picked file into a data URL and
+ * passes it here; `requireAdmin` gates who may upload.
+ */
+export const uploadHomepageImage = mutation({
   args: {
-    file: v.object({
-      name: v.string(),
-      type: v.string(),
-      size: v.number(),
-    }),
+    name: v.string(),
+    mimeType: v.string(),
+    dataUrl: v.string(),
   },
-  handler: async (ctx: GenericActionCtx, args) => {
-    await requireAdmin(ctx as unknown as AdminCtx);
-
-    const file = args.file as unknown as File;
-    const validationError = validateFile(file);
-    if (validationError) {
-      throw new Error(validationError);
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    if (!(ALLOWED_TYPES as readonly string[]).includes(args.mimeType)) {
+      throw new Error("Unsupported file type. Only JPG, PNG and WebP are allowed.");
     }
-
-    const bytes = await file.arrayBuffer();
-    const binary = Array.from(new Uint8Array(bytes))
-      .map((b) => String.fromCharCode(b))
-      .join("");
-    const b64 = btoa(binary);
-
+    if (!args.dataUrl.startsWith(`data:${args.mimeType};base64,`)) {
+      throw new Error("Invalid image data.");
+    }
+    const size = dataUrlByteLength(args.dataUrl);
+    if (size > MAX_IMAGE_BYTES) {
+      throw new Error("Image is too large. Maximum size is 600 KB.");
+    }
     const id = await ctx.db.insert("homepageImages", {
-      name: file.name,
-      mimeType: file.type,
-      size: file.size,
-      b64,
+      url: args.dataUrl,
+      name: args.name,
+      mimeType: args.mimeType,
+      size,
+      fileId: "",
       createdAt: Date.now(),
     });
-
-    return { id, url: `data:${file.type};base64,${b64}`, name: file.name };
+    // `fileId` doubles as a handle for `getHomepageImage`.
+    await ctx.db.patch(id, { fileId: id });
+    return { id, url: args.dataUrl, name: args.name };
   },
 });

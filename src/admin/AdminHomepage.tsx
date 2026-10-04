@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { SiteSettings } from "@/convex/schema";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
-import { Eye, Plus, Trash2 } from "lucide-react";
+import { Eye, Plus, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,64 @@ interface AboutSection {
 interface TimelineItem {
   label: string;
   note: string;
+}
+
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+/** Mirrors the server cap — the data URL lives inside a Convex document. */
+const MAX_IMAGE_BYTES = 600 * 1024;
+const MAX_IMAGE_DIMENSION = 1920;
+
+function dataUrlByteLength(dataUrl: string): number {
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0) return 0;
+  return Math.floor(((dataUrl.length - comma - 1) * 3) / 4);
+}
+
+/**
+ * Re-encodes a picked file as a JPEG data URL small enough to store in a
+ * Convex document. The same data URL is used for the preview and for saving,
+ * so what the admin sees is exactly what visitors get — no blob URLs or
+ * temporary references.
+ */
+async function fileToHeroDataUrl(
+  file: File,
+): Promise<{ dataUrl: string; mimeType: string }> {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const scale = Math.min(
+      1,
+      MAX_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height),
+    );
+    let width = Math.max(1, Math.round(bitmap.width * scale));
+    let height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("Image processing is not supported in this browser.");
+    }
+
+    for (let pass = 0; pass < 3; pass++) {
+      canvas.width = width;
+      canvas.height = height;
+      // Flatten transparency so the picture doesn't render on black.
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(bitmap, 0, 0, width, height);
+      for (const quality of [0.85, 0.7, 0.55, 0.45]) {
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        if (dataUrlByteLength(dataUrl) <= MAX_IMAGE_BYTES) {
+          return { dataUrl, mimeType: "image/jpeg" };
+        }
+      }
+      width = Math.max(1, Math.round(width * 0.6));
+      height = Math.max(1, Math.round(height * 0.6));
+    }
+    throw new Error(
+      "Couldn't compress that image under 600 KB — try a smaller picture.",
+    );
+  } finally {
+    bitmap.close();
+  }
 }
 
 function SectionCard({
@@ -158,6 +216,7 @@ function HomepageForm({
   settings: SiteSettings;
 }) {
   const upsert = useMutation(api.site.upsertSiteSettings);
+  const uploadImage = useMutation(api.site.uploadHomepageImage);
   const projects = useQuery(api.projects.listProjects, { page: 1 });
 
   const [hero, setHero] = useState({
@@ -183,6 +242,8 @@ function HomepageForm({
     settings.currentProject ?? "",
   );
   const [savingSection, setSavingSection] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const save = async (key: string, patch: Record<string, unknown>) => {
     setSavingSection(key);
@@ -193,6 +254,36 @@ function HomepageForm({
     );
     setSavingSection(null);
     return ok;
+  };
+
+  const pickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // reset so the same file can be re-picked
+    if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      toast.error("Unsupported file type. Only JPG, PNG and WebP are allowed.");
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const { dataUrl, mimeType } = await fileToHeroDataUrl(file);
+      const ok = await runAction(
+        () => uploadImage({ name: file.name, mimeType, dataUrl }),
+        "Image uploaded — press “Save section” to apply it.",
+        toast,
+      );
+      if (ok) {
+        setHero((prev) => ({ ...prev, heroImage: dataUrl }));
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Couldn't read that image file.",
+      );
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const projectOptions = projects?.items ?? [];
@@ -278,14 +369,62 @@ function HomepageForm({
             </div>
           </div>
           <div className="grid gap-1.5">
-            <Label className="text-xs text-muted-foreground">
-              Hero image URL (optional)
-            </Label>
-            <Input
-              value={hero.heroImage}
-              onChange={(e) => setHero({ ...hero, heroImage: e.target.value })}
-              placeholder="https://…"
-            />
+            <Label className="text-xs text-muted-foreground">Hero image</Label>
+            <div className="rounded-xl border border-border/60 bg-background/40 p-3">
+              {hero.heroImage ? (
+                <div className="mb-3 overflow-hidden rounded-lg border border-border/60">
+                  <img
+                    src={hero.heroImage}
+                    alt="Hero image preview"
+                    className="h-40 w-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="mb-3 flex h-24 items-center justify-center rounded-lg border border-dashed border-border/70 px-4 text-center text-xs text-muted-foreground">
+                  No image yet — the hero renders without a picture.
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={pickImage}
+                />
+                <Button
+                  size="sm"
+                  className="rounded-full"
+                  disabled={uploadingImage}
+                  onClick={() => imageInputRef.current?.click()}
+                >
+                  <Upload className="size-3.5" />
+                  {uploadingImage
+                    ? "Uploading…"
+                    : hero.heroImage
+                      ? "Replace image"
+                      : "Pick image"}
+                </Button>
+                {hero.heroImage && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-full text-destructive hover:text-destructive"
+                    disabled={uploadingImage}
+                    onClick={() =>
+                      setHero((prev) => ({ ...prev, heroImage: "" }))
+                    }
+                  >
+                    <Trash2 className="size-3.5" />
+                    Remove
+                  </Button>
+                )}
+                <span className="text-[11px] text-muted-foreground">
+                  JPG, PNG or WebP · auto-compressed · applied when you save
+                  this section
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </SectionCard>
