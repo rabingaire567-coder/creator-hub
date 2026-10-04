@@ -1,9 +1,9 @@
 import { v } from "convex/values";
 import { query, mutation, action } from "./_generated/server";
-import { api } from "./_generated/api";
 import { requireAdmin } from "./lib";
-import type { Id } from "./_generated/server";
 import type { SiteSettings } from "./schema";
+import type { AdminCtx } from "./lib";
+import type { GenericActionCtx } from "./_generated/server";
 
 // ---- Defaults (used when no settings row exists yet) ----
 export const DEFAULT_SETTINGS: Omit<SiteSettings, "createdAt"> = {
@@ -81,7 +81,6 @@ export const getSiteSettings = query({
   },
 });
 
-/** List all uploaded homepage images this site owns. */
 export const listHomepageImages = query({
   args: {},
   handler: async (ctx) => {
@@ -124,14 +123,11 @@ export const getTagByName = query({
 // ---- Mutations ----
 
 export const upsertSiteSettings = mutation({
-  // v.any() so the admin can patch any subset of settings fields without
-  // maintaining a duplicated validator list here.
   args: { patch: v.any() },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
     const patch = (args.patch ?? {}) as Partial<SiteSettings>;
     const existing = await ctx.db.query("siteSettings").first();
-
     if (existing) {
       await ctx.db.patch(existing._id, patch);
     } else {
@@ -178,18 +174,6 @@ export const deleteSiteSettings = mutation({
 
 // ---- Homepage image upload ----
 
-/**
- * Server-side store for the hero image.
- *
- * The project has no object-storage provider (Supabase/AWS S3/Public URL only).
- * It ships Convex DB + a Convex HTTP router (auth.addHttpRoutes). To give the
- * admin a real "Upload → Preview → Save" workflow without a second storage
- * system or manual URLs, the upload action keeps the uploaded image bytes
- * inside the existing app database as a permanent data URL and returns it to
- * the client as the new `heroImage`. MediaThumb renders that data URL exactly
- * like any plain hosted image, so public visitors on any device render the
- * same picture after a refresh.
- */
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MiB
 
@@ -219,7 +203,7 @@ export const uploadHomepageImage = action({
       size: v.number(),
     }),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx: GenericActionCtx, args) => {
     await requireAdmin(ctx as unknown as AdminCtx);
 
     const file = args.file as unknown as File;
@@ -228,9 +212,6 @@ export const uploadHomepageImage = action({
       throw new Error(validationError);
     }
 
-    // Decode the bytes and base64-encode them. This keeps the image reference
-    // self-contained (public Homepage + any browser can display it) without
-    // exposing storage credentials or service-role keys.
     const bytes = await file.arrayBuffer();
     const binary = Array.from(new Uint8Array(bytes))
       .map((b) => String.fromCharCode(b))

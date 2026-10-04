@@ -3,25 +3,15 @@ import { v } from "convex/values";
 import type { Auth } from "convex/server";
 import type { GenericDatabaseReader } from "convex/server";
 
-/**
- * Minimal ctx shape accepted by requireAdmin. The generated mutation ctx is
+/** Minimal ctx shape accepted by requireAdmin. The generated mutation ctx is
  * structurally assignable to this.
  */
-type AdminCtx = {
+export type AdminCtx = {
   auth: Auth;
   db: GenericDatabaseReader<any>;
 };
 
-/**
- * Owner-only guard for admin mutations.
- *
- * - Signed-out visitors are always rejected.
- * - If `siteSettings.adminEmail` is unset (fresh install), any signed-in
- *   account **with an email** may write — the one-time bootstrap window.
- *   Anonymous/guest sessions never get write access.
- * - Once the owner sets their email in Admin → Website Settings, only that
- *   account (matching email) may write.
- */
+/** Owner-only guard for admin mutations. */
 export async function requireAdmin(ctx: AdminCtx): Promise<string> {
   const userId = await getAuthUserId(ctx);
   if (userId === null) throw new Error("Unauthorized");
@@ -38,11 +28,7 @@ export async function requireAdmin(ctx: AdminCtx): Promise<string> {
   throw new Error("Unauthorized");
 }
 
-/**
- * Non-throwing predicate version of `requireAdmin`, for queries that should
- * quietly degrade (e.g. ignoring `includeDrafts` for non-owners) instead of
- * crashing the UI through an error boundary.
- */
+/** Non-throwing predicate version of requireAdmin. */
 export async function isAdmin(ctx: AdminCtx): Promise<boolean> {
   try {
     await requireAdmin(ctx);
@@ -52,18 +38,11 @@ export async function isAdmin(ctx: AdminCtx): Promise<boolean> {
   }
 }
 
-/**
- * Safe db.get for ids that arrive as raw strings (e.g. from URL params).
- * Malformed ids throw inside db.get — this returns null instead so public
- * pages can render their not-found state instead of crashing.
- */
-export async function safeGet<T = any>(
-  db: GenericDatabaseReader<any>,
-  id: string,
-): Promise<T | null> {
+/** Safe db.get for ids that arrive as raw strings (e.g. from URL params). */
+export async function safeGet<T = any>(db: GenericDatabaseReader<any>, id: string): Promise<T | null> {
   if (!id) return null;
   try {
-    return (((await db.get(id as any)) as T) ?? null);
+    return ((await db.get(id as any)) as T) ?? null;
   } catch {
     return null;
   }
