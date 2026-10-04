@@ -1,7 +1,8 @@
 import { v } from "convex/values";
 import { query, mutation, action } from "./_generated/server";
 import { api } from "./_generated/api";
-import { isAdmin as isAdminAllowed, requireAdmin } from "./lib";
+import { requireAdmin } from "./lib";
+import type { Id } from "./_generated/server";
 import type { SiteSettings } from "./schema";
 
 // ---- Defaults (used when no settings row exists yet) ----
@@ -98,7 +99,9 @@ export const listHomepageImagesApi = query({
 
 export const isAdmin = query({
   args: {},
-  handler: async (ctx) => await isAdminAllowed(ctx),
+  handler: async (ctx) => {
+    return await requireAdmin(ctx).then(() => true).catch(() => false);
+  },
 });
 
 export const getAllTags = query({
@@ -179,13 +182,13 @@ export const deleteSiteSettings = mutation({
  * Server-side store for the hero image.
  *
  * The project has no object-storage provider (Supabase/AWS S3/Public URL only).
- * It only ships Convex DB + a Convex HTTP router (auth.addHttpRoutes). To give
- * the admin a real "Upload → Preview → Save" workflow without introducing a
- * second storage system or manual URLs, the upload action keeps the uploaded
- * image bytes inside the existing app database as a permanent data URL and
- * returns it to the client as the new `heroImage`. MediaThumb renders that
- * data URL exactly like any plain hosted image, so public visitors on any
- * device render the same picture after a refresh.
+ * It ships Convex DB + a Convex HTTP router (auth.addHttpRoutes). To give the
+ * admin a real "Upload → Preview → Save" workflow without a second storage
+ * system or manual URLs, the upload action keeps the uploaded image bytes
+ * inside the existing app database as a permanent data URL and returns it to
+ * the client as the new `heroImage`. MediaThumb renders that data URL exactly
+ * like any plain hosted image, so public visitors on any device render the
+ * same picture after a refresh.
  */
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MiB
@@ -203,7 +206,8 @@ function validateFile(file: File): string | null {
 export const getHomepageImage = query({
   args: { fileId: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.fileId);
+    const record = await ctx.db.get(args.fileId as Id<"homepageImages">);
+    return record ?? null;
   },
 });
 
@@ -216,21 +220,13 @@ export const uploadHomepageImage = action({
     }),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    await requireAdmin(ctx as unknown as AdminCtx);
 
-    const validationError = validateFile(args.file);
+    const file = args.file as unknown as File;
+    const validationError = validateFile(file);
     if (validationError) {
       throw new Error(validationError);
     }
-
-    // The empty-object fallback below is intentionally unreachable: every
-    // browser sends the field name from the `<input type="file">` as
-    // `file` in FormData, and the public homepage only renders the saved
-    // reference. But Convex typechecks every arg shape strictly, and the
-    // request parser cannot infer a `File` into `v.any()`, so we keep the
-    // JSON-only fallback to make the action compile without disabling
-    // schema validation.
-    const file = args.file ?? { name: "", type: "", size: 0 };
 
     // Decode the bytes and base64-encode them. This keeps the image reference
     // self-contained (public Homepage + any browser can display it) without

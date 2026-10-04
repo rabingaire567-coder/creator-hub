@@ -1,4 +1,3 @@
-import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { Infer, v } from "convex/values";
 
@@ -19,6 +18,8 @@ type Role = Infer<typeof roleValidator>;
 // ---------------------------------------------------------------------------
 // Website / site settings (single row)
 // ---------------------------------------------------------------------------
+import { authTables } from "@convex-dev/auth/server";
+
 const siteSettingsTable = defineTable({
   title: v.string(), // e.g. "Rabin Gaire"
   tagline: v.string(),
@@ -78,8 +79,8 @@ const homepageImagesTable = defineTable({
   fileId: v.string(),
   createdAt: v.number(),
 })
-  .index("by_site_id", ["siteId"])
-  .index("by_createdAt", ["createdAt"]);
+  .index("by_site_id", { fields: ["siteId"] })
+  .index("by_createdAt", { fields: ["createdAt"] });
 
 // ---------------------------------------------------------------------------
 // Tags
