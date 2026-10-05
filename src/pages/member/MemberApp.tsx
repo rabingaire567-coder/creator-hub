@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router";
 import { api } from "@/convex/_generated/api";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useAuth } from "@/hooks/use-auth";
 import { useAccentColors, useSettingsTheme } from "@/lib/accents";
 import { cn } from "@/lib/utils";
@@ -23,21 +23,15 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   ArrowUpRight,
-  FileText,
-  FolderGit2,
-  LayoutDashboard,
+  Bell,
+  Bookmark,
+  Home,
+  Lightbulb,
   LogOut,
-  Mail,
   Menu,
-  PanelTop,
-  Plus,
-  Settings,
-  ShieldAlert,
-  Share2,
-  Tag,
-  Users,
-  UsersRound,
-  Video,
+  MessagesSquare,
+  Newspaper,
+  UserRound,
 } from "lucide-react";
 
 interface NavEntry {
@@ -48,33 +42,25 @@ interface NavEntry {
   badge?: number;
 }
 
-function navEntries(
-  newMessages: number,
-  newSubmissions: number,
-  newMemberMessages: number,
-): NavEntry[] {
+function navEntries(unreadMessages: number, unreadNotifications: number): NavEntry[] {
   return [
-    { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
-    { to: "/admin/content", label: "Content", icon: Video },
-    { to: "/admin/articles", label: "Articles", icon: FileText },
-    { to: "/admin/projects", label: "Projects", icon: FolderGit2 },
-    { to: "/admin/tags", label: "Tags", icon: Tag },
-    { to: "/admin/social", label: "Social links", icon: Share2 },
-    { to: "/admin/homepage", label: "Homepage Settings", icon: PanelTop },
+    { to: "/member", label: "Welcome", icon: Home, end: true },
     {
-      to: "/admin/community",
-      label: "Community",
-      icon: Users,
-      badge: newSubmissions,
+      to: "/member/messages",
+      label: "Messages",
+      icon: MessagesSquare,
+      badge: unreadMessages,
     },
     {
-      to: "/admin/members",
-      label: "Members",
-      icon: UsersRound,
-      badge: newMemberMessages,
+      to: "/member/notifications",
+      label: "Notifications",
+      icon: Bell,
+      badge: unreadNotifications,
     },
-    { to: "/admin/messages", label: "Messages", icon: Mail, badge: newMessages },
-    { to: "/admin/settings", label: "Settings", icon: Settings },
+    { to: "/member/saved", label: "Saved content", icon: Bookmark },
+    { to: "/member/suggest", label: "Suggest a topic", icon: Lightbulb },
+    { to: "/member/updates", label: "Creator updates", icon: Newspaper },
+    { to: "/member/profile", label: "Profile", icon: UserRound },
   ];
 }
 
@@ -119,53 +105,64 @@ function NavItems({
 }
 
 /**
- * Admin studio shell: fixed sidebar (sheet on mobile), top bar with site
- * links / theme control / sign-out, and the routed screen area.
+ * Private member area shell: sidebar (sheet on mobile), top bar with site
+ * links / theme / sign-out, and the routed section area. The community
+ * profile is created automatically the first time a signed-in user lands
+ * here, right after signup.
  */
-export default function AdminApp() {
+export default function MemberApp() {
   const settings = useQuery(api.site.getSiteSettings);
   useAccentColors(settings);
   useSettingsTheme(settings?.theme);
-  const { user, signOut } = useAuth();
+  const { user, signOut, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const newMessages = useQuery(api.contact.countNewContactMessages) ?? 0;
-  const newSubmissions = useQuery(api.community.countNewSubmissions) ?? 0;
-  const newMemberMessages = useQuery(api.members.adminUnreadCount) ?? 0;
-  const isOwner = useQuery(api.site.isAdmin);
-  const entries = navEntries(newMessages, newSubmissions, newMemberMessages);
+  const profile = useQuery(api.members.getMyProfile);
+  const unreadMessages = useQuery(api.members.countUnreadMessages) ?? 0;
+  const unreadNotifications =
+    useQuery(api.members.countUnreadNotifications) ?? 0;
+  const ensureMyProfile = useMutation(api.members.ensureMyProfile);
+
+  // Auto-create the community profile after signup / first visit.
+  const creatingRef = useRef(false);
+  useEffect(() => {
+    if (authLoading || profile !== null || creatingRef.current) return;
+    creatingRef.current = true;
+    ensureMyProfile().catch((error) => {
+      creatingRef.current = false;
+      console.error("Could not create community profile:", error);
+    });
+  }, [authLoading, profile, ensureMyProfile]);
+
+  const entries = navEntries(unreadMessages, unreadNotifications);
 
   const handleSignOut = async () => {
     await signOut();
     navigate("/");
   };
 
-  // A second signed-in account (after the owner email is set) gets a clean
-  // access-denied screen instead of failing admin queries downstream.
-  if (isOwner === false) {
+  // A disabled community account gets a clean notice instead of failing
+  // member queries downstream.
+  if (profile?.status === "disabled") {
     return (
       <div className="relative flex min-h-screen items-center justify-center bg-background p-6">
         <div className="warm-glow pointer-events-none absolute inset-0" />
         <Card className="relative w-full max-w-md border-border/70 bg-card/85 text-center">
           <CardHeader>
             <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-ember/15">
-              <ShieldAlert className="size-5 text-ember" />
+              <LogOut className="size-5 text-ember" />
             </div>
             <CardTitle className="font-display text-xl">
-              Owner access only
+              Account disabled
             </CardTitle>
             <CardDescription>
-              The studio is limited to the owner account
-              {settings?.adminEmail ? ` (${settings.adminEmail})` : ""}. Sign out
-              and sign in with the owner email to continue.
+              Your community membership has been paused. If you think this is a
+              mistake, reach out via the contact page.
             </CardDescription>
           </CardHeader>
           <CardFooter className="flex-col gap-2">
-            <Button
-              className="w-full rounded-full"
-              onClick={handleSignOut}
-            >
+            <Button className="w-full rounded-full" onClick={handleSignOut}>
               <LogOut className="size-4" /> Sign out
             </Button>
             <Button asChild variant="ghost" className="w-full rounded-full">
@@ -177,6 +174,11 @@ export default function AdminApp() {
     );
   }
 
+  const firstName =
+    profile?.displayName?.split(/\s+/)[0] ??
+    user?.email?.split("@")[0] ??
+    "there";
+
   return (
     <div className="flex min-h-screen bg-background">
       {/* Desktop sidebar */}
@@ -187,9 +189,9 @@ export default function AdminApp() {
           </span>
           <div className="min-w-0">
             <p className="truncate font-display text-sm font-semibold">
-              {settings?.title ?? "Studio"}
+              {settings?.title ?? "Community"}
             </p>
-            <p className="text-[11px] text-muted-foreground">Creator studio</p>
+            <p className="text-[11px] text-muted-foreground">Member area</p>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-3">
@@ -227,7 +229,7 @@ export default function AdminApp() {
             <SheetContent side="left" className="w-72">
               <SheetHeader>
                 <SheetTitle className="font-display">
-                  {settings?.title ?? "Studio"}
+                  {settings?.title ?? "Community"}
                 </SheetTitle>
               </SheetHeader>
               <div className="mt-2 px-2">
@@ -241,29 +243,18 @@ export default function AdminApp() {
 
           <div className="hidden items-center gap-2 sm:flex">
             <span className="rounded-full border border-ember/30 bg-ember/10 px-3 py-1 text-[11px] font-semibold tracking-wider text-ember uppercase">
-              Studio
+              Community
             </span>
             <span className="text-sm text-muted-foreground">
-              Manage your site, content and inbox
+              Welcome back, {firstName}
             </span>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="hidden rounded-full sm:inline-flex"
-            >
-              <Link to="/admin/content">
-                <Plus className="size-4" />
-                New content
-              </Link>
-            </Button>
             <ThemeToggle />
             <div className="hidden items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 md:flex">
               <span className="max-w-40 truncate text-xs text-muted-foreground">
-                {user?.email ?? "Signed in"}
+                {profile?.email ?? user?.email ?? "Signed in"}
               </span>
             </div>
             <Button
@@ -278,8 +269,8 @@ export default function AdminApp() {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 p-4 sm:p-6 lg:p-8">
-          <Outlet />
+        <main className="mx-auto w-full max-w-5xl flex-1 p-4 sm:p-6 lg:p-8">
+          <Outlet context={{ profile }} />
         </main>
       </div>
     </div>

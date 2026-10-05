@@ -3,7 +3,7 @@ import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Mail, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Mail, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AdminPageHeader, StatusPill, runAction } from "@/admin/shared";
+import { AdminPageHeader, StatusPill, confirmAction, runAction } from "@/admin/shared";
 import { timeAgo, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -55,6 +55,7 @@ export default function AdminCommunity() {
     detailId ? { id: detailId } : "skip",
   );
   const updateSubmission = useMutation(api.community.updateSubmission);
+  const deleteSubmission = useMutation(api.community.deleteSubmission);
 
   const items = submissions?.items ?? [];
   const total = submissions?.total ?? 0;
@@ -66,6 +67,22 @@ export default function AdminCommunity() {
       `Marked ${status}.`,
       toast,
     );
+
+  const removeSubmission = (submission: SubmissionDoc) => {
+    if (
+      !confirmAction(
+        "Remove this submission permanently? This cannot be undone.",
+      )
+    )
+      return;
+    runAction(
+      () => deleteSubmission({ id: submission._id }),
+      "Submission removed.",
+      toast,
+    ).then((ok) => {
+      if (ok) setDetailId(null);
+    });
+  };
 
   return (
     <div>
@@ -240,7 +257,16 @@ export default function AdminCommunity() {
                   </span>
                 </div>
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap justify-between gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full text-destructive hover:text-destructive"
+                  onClick={() => removeSubmission(detail)}
+                >
+                  <Trash2 className="size-4" />
+                  Remove
+                </Button>
                 <Select
                   value={detail.status ?? "new"}
                   onValueChange={(status) => changeStatus(detail, status)}

@@ -46,8 +46,25 @@ const AdminTags = lazy(() => import("./admin/AdminTags.tsx"));
 const AdminSocial = lazy(() => import("./admin/AdminSocial.tsx"));
 const AdminHomepage = lazy(() => import("./admin/AdminHomepage.tsx"));
 const AdminCommunity = lazy(() => import("./admin/AdminCommunity.tsx"));
+const AdminMembers = lazy(() => import("./admin/AdminMembers.tsx"));
 const AdminMessages = lazy(() => import("./admin/AdminMessages.tsx"));
 const AdminSettings = lazy(() => import("./admin/AdminSettings.tsx"));
+
+// ---------------------------------------------------------------------------
+// Community member area (private — wrapped in RequireAuth)
+// ---------------------------------------------------------------------------
+const MemberApp = lazy(() => import("./pages/member/MemberApp.tsx"));
+const MemberHome = lazy(() => import("./pages/member/MemberHome.tsx"));
+const MemberMessages = lazy(() =>
+  import("./pages/member/MemberMessages.tsx"),
+);
+const MemberNotifications = lazy(() =>
+  import("./pages/member/MemberNotifications.tsx"),
+);
+const MemberSaved = lazy(() => import("./pages/member/MemberSaved.tsx"));
+const MemberSuggest = lazy(() => import("./pages/member/MemberSuggest.tsx"));
+const MemberUpdates = lazy(() => import("./pages/member/MemberUpdates.tsx"));
+const MemberProfile = lazy(() => import("./pages/member/MemberProfile.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -180,8 +197,30 @@ createRoot(document.getElementById("root")!).render(
                   {/* ---------------- Auth ---------------- */}
                   <Route
                     path="/auth"
-                    element={<AuthPage redirectAfterAuth="/admin" />}
+                    element={<AuthPage redirectAfterAuth="/member" />}
                   />
+
+                  {/* ---------------- Community member area ---------------- */}
+                  <Route
+                    path="/member"
+                    element={
+                      <RequireAuth redirectImmediately>
+                        <MemberApp />
+                      </RequireAuth>
+                    }
+                  >
+                    <Route index element={<MemberHome />} />
+                    <Route path="messages" element={<MemberMessages />} />
+                    <Route
+                      path="notifications"
+                      element={<MemberNotifications />}
+                    />
+                    <Route path="saved" element={<MemberSaved />} />
+                    <Route path="suggest" element={<MemberSuggest />} />
+                    <Route path="updates" element={<MemberUpdates />} />
+                    <Route path="profile" element={<MemberProfile />} />
+                    <Route path="*" element={<Navigate to="/member" replace />} />
+                  </Route>
 
                   {/* ---------------- Admin studio ---------------- */}
                   <Route
@@ -200,6 +239,7 @@ createRoot(document.getElementById("root")!).render(
                     <Route path="social" element={<AdminSocial />} />
                     <Route path="homepage" element={<AdminHomepage />} />
                     <Route path="community" element={<AdminCommunity />} />
+                    <Route path="members" element={<AdminMembers />} />
                     <Route path="messages" element={<AdminMessages />} />
                     <Route path="settings" element={<AdminSettings />} />
                     <Route path="*" element={<Navigate to="/admin" replace />} />

@@ -218,6 +218,82 @@ const contactMessagesTable = defineTable({
   .index("by_email", ["email"]);
 
 // ---------------------------------------------------------------------------
+// Community membership — one profile per signed-in user, auto-created the
+// first time the member area (or any member mutation) runs.
+// ---------------------------------------------------------------------------
+const memberProfilesTable = defineTable({
+  userId: v.id("users"),
+  displayName: v.string(),
+  email: v.optional(v.string()),
+  bio: v.optional(v.string()),
+  // Profile picture as a base64 data URL (same approach as the homepage
+  // photos) so it renders anywhere with no storage credentials.
+  photo: v.optional(v.string()),
+  // "active" (default) or "disabled" — set by the admin.
+  status: v.optional(v.string()),
+  createdAt: v.optional(v.number()),
+  updatedAt: v.optional(v.number()),
+})
+  .index("by_user", ["userId"])
+  .index("by_status", ["status"]);
+
+// ---------------------------------------------------------------------------
+// Member ↔ creator/admin conversation. One thread per member; `read` tracks
+// whether the *recipient* has seen the message.
+// ---------------------------------------------------------------------------
+const memberMessagesTable = defineTable({
+  memberId: v.id("users"),
+  sender: v.string(), // "member" | "admin"
+  senderName: v.optional(v.string()),
+  body: v.string(),
+  read: v.optional(v.boolean()),
+  createdAt: v.optional(v.number()),
+})
+  .index("by_member", ["memberId"])
+  .index("by_member_read", ["memberId", "read"]);
+
+// ---------------------------------------------------------------------------
+// Member notifications (replies, announcements, creator updates)
+// ---------------------------------------------------------------------------
+const memberNotificationsTable = defineTable({
+  userId: v.id("users"),
+  type: v.string(), // "message" | "announcement" | "update"
+  title: v.string(),
+  body: v.optional(v.string()),
+  link: v.optional(v.string()),
+  read: v.optional(v.boolean()),
+  createdAt: v.optional(v.number()),
+})
+  .index("by_user", ["userId"])
+  .index("by_user_read", ["userId", "read"]);
+
+// ---------------------------------------------------------------------------
+// Content saved by a member for later
+// ---------------------------------------------------------------------------
+const savedContentTable = defineTable({
+  userId: v.id("users"),
+  contentId: v.string(),
+  kind: v.string(), // "video" | "article" | "project"
+  title: v.string(),
+  subtitle: v.optional(v.string()),
+  href: v.string(),
+  thumbnail: v.optional(v.string()),
+  createdAt: v.optional(v.number()),
+})
+  .index("by_user", ["userId"])
+  .index("by_user_content", ["userId", "contentId"]);
+
+// ---------------------------------------------------------------------------
+// Creator updates / community announcements (published from the admin studio)
+// ---------------------------------------------------------------------------
+const creatorUpdatesTable = defineTable({
+  title: v.string(),
+  body: v.string(),
+  kind: v.optional(v.string()), // "update" | "announcement"
+  createdAt: v.optional(v.number()),
+}).index("by_created", ["createdAt"]);
+
+// ---------------------------------------------------------------------------
 // Root schema
 // ---------------------------------------------------------------------------
 export default defineSchema(
@@ -234,6 +310,13 @@ export default defineSchema(
     socialLinks: socialLinksTable,
     communitySubmissions: communitySubmissionsTable,
     contactMessages: contactMessagesTable,
+
+    // community membership
+    memberProfiles: memberProfilesTable,
+    memberMessages: memberMessagesTable,
+    memberNotifications: memberNotificationsTable,
+    savedContent: savedContentTable,
+    creatorUpdates: creatorUpdatesTable,
   },
   {
     schemaValidation: false,
@@ -249,3 +332,8 @@ export type Project = Infer<(typeof projectsTable)["validator"]>;
 export type SocialLink = Infer<(typeof socialLinksTable)["validator"]>;
 export type CommunitySubmission = Infer<(typeof communitySubmissionsTable)["validator"]>;
 export type ContactMessage = Infer<(typeof contactMessagesTable)["validator"]>;
+export type MemberProfile = Infer<(typeof memberProfilesTable)["validator"]>;
+export type MemberMessage = Infer<(typeof memberMessagesTable)["validator"]>;
+export type MemberNotification = Infer<(typeof memberNotificationsTable)["validator"]>;
+export type SavedContent = Infer<(typeof savedContentTable)["validator"]>;
+export type CreatorUpdate = Infer<(typeof creatorUpdatesTable)["validator"]>;

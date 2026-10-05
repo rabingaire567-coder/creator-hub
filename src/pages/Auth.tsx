@@ -43,6 +43,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     redirectAfterAuth,
   );
   const [step, setStep] = useState<"signIn" | { email: string }>("signIn");
+  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +53,26 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
       navigate(redirect);
     }
   }, [authLoading, isAuthenticated, navigate, redirect]);
+  const MODE_COPY = {
+    signin: {
+      title: "Welcome back",
+      description: "Enter your email to log in to your community account.",
+      cta: "Email me a sign-in code",
+    },
+    signup: {
+      title: "Join the community",
+      description:
+        "Create your account — we'll email you a 6-digit code, no password needed.",
+      cta: "Create my account",
+    },
+    reset: {
+      title: "Reset your access",
+      description:
+        "There's no password to forget — sign-in uses a one-time code we email to you. Enter your email and we'll send a fresh code.",
+      cta: "Send a new code",
+    },
+  } as const;
+
   const handleEmailSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
@@ -141,11 +162,36 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                     />
                   </div>
                 <CardTitle className="font-display text-xl">
-                  Welcome back
+                  {MODE_COPY[mode].title}
                 </CardTitle>
                 <CardDescription>
-                  Enter your email to log in or sign up
+                  {MODE_COPY[mode].description}
                 </CardDescription>
+                {/* Sign up / login toggle (same passwordless code flow) */}
+                <div className="mx-auto mt-4 grid w-full max-w-xs grid-cols-2 rounded-full border border-border bg-muted/50 p-1 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setMode("signin")}
+                    className={
+                      mode === "reset" || mode === "signin"
+                        ? "rounded-full bg-background px-3 py-1.5 font-medium text-foreground shadow-sm"
+                        : "rounded-full px-3 py-1.5 text-muted-foreground hover:text-foreground"
+                    }
+                  >
+                    Sign in
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode("signup")}
+                    className={
+                      mode === "signup"
+                        ? "rounded-full bg-background px-3 py-1.5 font-medium text-foreground shadow-sm"
+                        : "rounded-full px-3 py-1.5 text-muted-foreground hover:text-foreground"
+                    }
+                  >
+                    Sign up
+                  </button>
+                </div>
               </CardHeader>
               <form onSubmit={handleEmailSubmit}>
                 <CardContent>
@@ -178,6 +224,31 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                   {error && (
                     <p className="mt-2 text-sm text-destructive">{error}</p>
                   )}
+
+                  <div className="mt-2 flex items-center justify-between">
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground transition-colors hover:text-ember"
+                      onClick={() => {
+                        setError(null);
+                        setMode("reset");
+                      }}
+                    >
+                      Forgot password?
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground transition-colors hover:text-ember"
+                      onClick={() => {
+                        setError(null);
+                        setMode(mode === "signup" ? "signin" : "signup");
+                      }}
+                    >
+                      {mode === "signup"
+                        ? "Already a member? Sign in"
+                        : "New here? Create an account"}
+                    </button>
+                  </div>
                   
                   <div className="mt-4">
                     <div className="relative">
@@ -206,8 +277,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
               </form>
             </>
           ) : (
-            <>
-              <CardHeader className="text-center mt-4">
+            <>                <CardHeader className="text-center mt-4">
                 <CardTitle className="font-display">Check your email</CardTitle>
                 <CardDescription>
                   We've sent a code to {step.email}

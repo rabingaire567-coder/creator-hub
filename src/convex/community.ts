@@ -81,3 +81,15 @@ export const updateSubmission = mutation({
     return true;
   },
 });
+
+/** Permanently remove an inappropriate submission. Admin only. */
+export const deleteSubmission = mutation({
+  args: { id: v.id("communitySubmissions") },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const record = await ctx.db.get(args.id);
+    if (!record) throw new Error("Submission not found");
+    await ctx.db.delete(args.id);
+    return true;
+  },
+});

@@ -3,7 +3,14 @@ import { Link, NavLink, useLocation } from "react-router";
 import { api } from "@/convex/_generated/api";
 import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, LayoutDashboard, Menu, Search } from "lucide-react";
+import {
+  ArrowUpRight,
+  LayoutDashboard,
+  Menu,
+  Search,
+  Users,
+} from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -55,6 +62,7 @@ function Monogram({ name }: { name?: string }) {
 export function Navbar({ onSearch }: { onSearch: () => void }) {
   const settings = useQuery(api.site.getSiteSettings);
   const socialLinks = useQuery(api.social.listSocialLinks);
+  const { isAuthenticated } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
@@ -66,7 +74,13 @@ export function Navbar({ onSearch }: { onSearch: () => void }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  useEffect(() => setMobileOpen(false), [location.pathname]);
+  // Close the mobile sheet on any route change (state adjustment during
+  // render — avoids a setState-inside-effect cascade).
+  const [lastPath, setLastPath] = useState(location.pathname);
+  if (lastPath !== location.pathname) {
+    setLastPath(location.pathname);
+    setMobileOpen(false);
+  }
 
   const siteName = settings?.logoName || settings?.title || "Rabin Gaire";
   const followLinks = (socialLinks ?? []).filter((l) => l.enabled !== false);
@@ -148,6 +162,18 @@ export function Navbar({ onSearch }: { onSearch: () => void }) {
           </Button>
 
           <ThemeToggle />
+
+          {/* Community membership — sign up / login for viewers */}
+          <Button
+            asChild
+            size="sm"
+            className="hidden rounded-full bg-ember px-4 text-white hover:brightness-110 sm:inline-flex"
+          >
+            <Link to={isAuthenticated ? "/member" : "/auth?returnTo=/member"}>
+              <Users className="size-3.5" />
+              {isAuthenticated ? "Member Area" : "Join Community"}
+            </Link>
+          </Button>
 
           {/* Owner studio — routes through RequireAuth to /auth with returnTo */}
           <Button
@@ -266,6 +292,14 @@ export function Navbar({ onSearch }: { onSearch: () => void }) {
                 >
                   Studio
                   <LayoutDashboard className="size-4 opacity-60" />
+                </NavLink>
+                <NavLink
+                  to={isAuthenticated ? "/member" : "/auth?returnTo=/member"}
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center justify-between rounded-xl px-4 py-3 text-lg font-medium text-foreground hover:bg-muted"
+                >
+                  {isAuthenticated ? "Member Area" : "Join Community"}
+                  <Users className="size-4 opacity-60" />
                 </NavLink>
                 {followLinks.length > 0 && (
                   <div className="flex flex-wrap gap-2 px-1">
