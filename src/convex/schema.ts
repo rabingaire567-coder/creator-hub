@@ -14,7 +14,6 @@ export const roleValidator = v.union(
   v.literal(ROLES.USER),
   v.literal(ROLES.MEMBER),
 );
-type Role = Infer<typeof roleValidator>;
 
 // ---------------------------------------------------------------------------
 // Website / site settings (single row)
@@ -50,6 +49,17 @@ const siteSettingsTable = defineTable({
   heroCtaSecondaryHref: v.string(),
   heroImage: v.optional(v.string()),
   introduction: v.string(),
+  // ---- Creator introduction (top of the public homepage) ----
+  // The uploaded portrait is stored as a data URL via `uploadHomepageImage`,
+  // exactly like `heroImage`. All fields are optional: the homepage falls
+  // back to sensible defaults derived from the site settings.
+  creatorPhoto: v.optional(v.string()),
+  creatorName: v.optional(v.string()),
+  creatorTagline: v.optional(v.string()),
+  creatorIntro: v.optional(v.string()),
+  creatorCtaLabel: v.optional(v.string()),
+  creatorCtaHref: v.optional(v.string()),
+  creatorYoutube: v.optional(v.string()),
   stats: v.string(), // JSON array of { label, value, suffix? }
   aboutSections: v.optional(v.string()), // JSON array of { title, body }
   timeline: v.optional(v.string()), // JSON array of { label, note }

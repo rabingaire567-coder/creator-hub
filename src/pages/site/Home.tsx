@@ -18,13 +18,13 @@ import {
   Sparkles,
   Telescope,
   Users,
+  Youtube,
 } from "lucide-react";
 import { usePageMeta } from "@/lib/seo";
-import { formatDate, parseJsonArray, type Stat, DEFAULT_STATS } from "@/lib/format";
+import { parseJsonArray, type Stat, DEFAULT_STATS } from "@/lib/format";
 import { Reveal } from "@/components/site/Reveal";
 import { SectionHeading } from "@/components/site/SectionHeading";
 import { StatCounter } from "@/components/site/StatCounter";
-import { MediaThumb } from "@/components/site/MediaThumb";
 import { EmptyState } from "@/components/site/EmptyState";
 import { SocialLinks } from "@/components/site/SocialLinks";
 import { ContentCard } from "@/components/site/ContentCard";
@@ -86,6 +86,7 @@ export default function Home() {
 
   const settings = useQuery(api.site.getSiteSettings);
   const latestPosts = useQuery(api.posts.listLatestPosts);
+  const latestVideos = useQuery(api.posts.listLatestVideos);
   const featuredPosts = useQuery(api.posts.listPosts, { featuredOnly: true });
   const articles = useQuery(api.articles.listArticles, { page: 1 });
   const projects = useQuery(api.projects.listProjects, { page: 1 });
@@ -99,11 +100,19 @@ export default function Home() {
   // surface on the live site.
   const stats = parseJsonArray<Stat>(settings?.stats, DEFAULT_STATS);
 
+  // The "Latest videos" grid at the top already shows the newest posts, so
+  // the Featured section below falls back to older published videos instead
+  // of repeating the same cards — and hides only when there is nothing
+  // unique left to show.
+  const latestVideoItems = latestVideos ?? [];
+  const latestVideoIds = new Set(latestVideoItems.map((post) => post._id));
+  const featuredOnlyItems = featuredPosts?.items ?? [];
   const featuredItems =
-    (featuredPosts?.items && featuredPosts.items.length > 0
-      ? featuredPosts.items
-      : latestPosts) ?? [];
-  const latestPost = latestPosts?.[0];
+    featuredOnlyItems.length > 0
+      ? featuredOnlyItems
+      : (latestPosts ?? []).filter((post) => !latestVideoIds.has(post._id));
+  const showFeaturedSection =
+    featuredItems.length > 0 || latestVideoItems.length === 0;
   const articleItems = articles?.items ?? [];
 
   const currentProjectId = settings?.currentProject;
@@ -114,14 +123,45 @@ export default function Home() {
     (projects?.items ?? []).find((p) => p.status === "Building");
 
   const heroLabel = settings?.heroSubtext || "Creator • Storyteller • Developer";
-  const heroHeading =
-    settings?.heroHeading ||
-    "Exploring ideas, technology, Nepal and the stories behind them.";
 
-  const heroImage =
-    typeof settings?.heroImage === "string" && settings.heroImage.trim()
-      ? settings.heroImage.trim()
-      : latestPost?.thumbnail ?? "";
+  // ---- Creator introduction (top of the homepage) ----
+  // Every value is managed from Admin → Homepage Settings (photo via the
+  // Convex image upload) and falls back to the classic site settings so the
+  // section always renders.
+  const creatorName =
+    settings?.creatorName?.trim() || settings?.title || "Rabin Gaire";
+  const creatorTagline =
+    settings?.creatorTagline?.trim() ||
+    settings?.heroHeading ||
+    settings?.tagline ||
+    "Exploring ideas, technology, Nepal and the stories behind them.";
+  const creatorIntro =
+    settings?.creatorIntro?.trim() ||
+    settings?.introduction ||
+    "I build things with code and tell stories with film — exploring technology, learning, Nepal, education and science, and the human side of them all.";
+  const creatorCtaLabel =
+    settings?.creatorCtaLabel?.trim() ||
+    settings?.heroCtaSecondary ||
+    "Explore My Work";
+  const creatorCtaHref =
+    settings?.creatorCtaHref?.trim() ||
+    settings?.heroCtaSecondaryHref ||
+    "/projects";
+  // Always-rendered YouTube button: admin link → YouTube social link →
+  // youtube.com, so the button is never a dead link or someone's channel
+  // by accident.
+  const creatorYoutube =
+    settings?.creatorYoutube?.trim() ||
+    socialLinks?.find((link) => link.platform === "YouTube")?.url ||
+    "https://www.youtube.com/";
+  const creatorPhoto = settings?.creatorPhoto?.trim() || "";
+  const heroImage = settings?.heroImage?.trim() || "";
+  const creatorInitials = creatorName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word.charAt(0).toUpperCase())
+    .join("");
 
   const fade = (delay: number) =>
     reduced
@@ -134,13 +174,13 @@ export default function Home() {
 
   return (
     <>
-      {/* ============================ HERO ============================ */}
+      {/* ========================= CREATOR INTRO ========================= */}
       <section className="relative overflow-hidden">
         <div className="warm-glow pointer-events-none absolute inset-0" />
         <div className="grain pointer-events-none absolute inset-0" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-background" />
 
-        <div className="relative mx-auto grid w-full max-w-6xl gap-14 px-4 pt-32 pb-24 sm:px-6 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-10 lg:pt-40 lg:pb-32">
+        <div className="relative mx-auto grid w-full max-w-6xl gap-14 px-4 pt-32 pb-16 sm:px-6 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-12 lg:pt-40 lg:pb-20">
           {/* Copy */}
           <div>
             <motion.p
@@ -155,37 +195,53 @@ export default function Home() {
               {...fade(0.15)}
               className="font-display mt-7 text-[2.6rem] leading-[1.06] font-semibold tracking-tight text-balance text-foreground sm:text-6xl lg:text-[4.1rem]"
             >
-              {heroHeading}
+              Hi, I&rsquo;m{" "}
+              <span className="text-gradient-warm">{creatorName}.</span>
             </motion.h1>
 
             <motion.p
-              {...fade(0.28)}
-              className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground"
+              {...fade(0.24)}
+              className="mt-5 max-w-xl text-xl leading-relaxed font-medium text-foreground sm:text-2xl"
             >
-              {settings?.description ||
-                "Documentaries, explainers and field notes on technology, learning and life in Nepal."}
+              {creatorTagline}
             </motion.p>
 
-            <motion.div {...fade(0.4)} className="mt-9 flex flex-wrap items-center gap-3">
-              <CtaLink href={settings?.heroCtaPrimaryHref || "/content"}>
-                <Play className="size-4 fill-current" />
-                {settings?.heroCtaPrimary || "Watch Latest"}
-              </CtaLink>
-              <CtaLink
-                href={settings?.heroCtaSecondaryHref || "/projects"}
-                variant="outline"
-              >
-                {settings?.heroCtaSecondary || "Explore My Work"}
+            <motion.p
+              {...fade(0.32)}
+              className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg"
+            >
+              {creatorIntro}
+            </motion.p>
+
+            <motion.div
+              {...fade(0.42)}
+              className="mt-8 flex flex-wrap items-center gap-3"
+            >
+              <CtaLink href={creatorCtaHref}>
+                {creatorCtaLabel}
                 <ArrowRight className="size-4" />
               </CtaLink>
+              {creatorYoutube && (
+                <CtaLink href={creatorYoutube} variant="outline">
+                  <Youtube className="size-4" />
+                  YouTube
+                </CtaLink>
+              )}
+              <Link
+                to="/about"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-ember transition-colors hover:text-clay"
+              >
+                More about me
+                <ArrowUpRight className="size-4" />
+              </Link>
             </motion.div>
 
-            <motion.div {...fade(0.5)} className="mt-10">
+            <motion.div {...fade(0.52)} className="mt-9">
               <SocialLinks links={socialLinks ?? []} />
             </motion.div>
           </div>
 
-          {/* Cinematic visual */}
+          {/* Uploaded portrait */}
           <motion.div
             initial={reduced ? undefined : { opacity: 0, scale: 0.94, rotate: 2 }}
             animate={reduced ? undefined : { opacity: 1, scale: 1, rotate: 0 }}
@@ -194,56 +250,33 @@ export default function Home() {
           >
             <div className="absolute -inset-8 rounded-[2.5rem] bg-gradient-to-br from-ember/25 via-gold/10 to-clay/25 blur-3xl" />
 
-            {latestPost ? (
-              <Link
-                to={`/content/${latestPost._id}`}
-                className="group relative block rotate-[-1.5deg] outline-none transition-transform duration-500 hover:rotate-0 focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label={`Watch latest: ${latestPost.title}`}
-              >
-                <MediaThumb
-                  src={latestPost.thumbnail}
-                  youtubeId={latestPost.youtubeId}
-                  alt={latestPost.title}
-                  category={latestPost.categories[0]}
-                  className="aspect-video rounded-3xl border border-border shadow-[0_40px_90px_-40px_rgba(0,0,0,0.85)]"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  <span className="absolute inset-0 flex items-center justify-center">
-                    <span className="flex size-16 items-center justify-center rounded-full bg-background/80 text-ember shadow-xl transition-transform duration-500 group-hover:scale-110">
-                      <Play className="size-6 fill-current ml-0.5" />
+            <div className="relative mx-auto max-w-sm rotate-[-1.5deg] lg:max-w-none">
+              <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[2rem] border border-border bg-card shadow-[0_40px_90px_-40px_rgba(0,0,0,0.85)]">
+                {creatorPhoto || heroImage ? (
+                  <img
+                    src={creatorPhoto || heroImage}
+                    alt={creatorName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-ember/25 via-gold/10 to-clay/25">
+                    <span className="font-display text-gradient-warm text-7xl font-semibold select-none">
+                      {creatorInitials}
                     </span>
-                  </span>
-                  <span className="absolute top-4 left-4 rounded-full bg-ember px-3 py-1 text-[11px] font-bold tracking-wider text-white uppercase">
-                    Latest
-                  </span>
-                  <div className="absolute right-4 bottom-4 left-4">
-                    <p className="line-clamp-1 text-sm font-semibold text-white drop-shadow">
-                      {latestPost.title}
-                    </p>
-                    <p className="mt-0.5 text-xs text-white/70">
-                      {formatDate(latestPost.publishedAt ?? latestPost.createdAt)}
-                      {latestPost.duration ? ` • ${latestPost.duration}` : ""}
-                    </p>
                   </div>
-                </MediaThumb>
-              </Link>
-            ) : (
-              <MediaThumb
-                src={heroImage}
-                alt="Rabin Gaire"
-                className="aspect-video rounded-3xl border border-border shadow-[0_40px_90px_-40px_rgba(0,0,0,0.85)]"
-              >
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                <span className="absolute inset-0 flex items-center justify-center">
-                  <div className="flex size-16 items-center justify-center rounded-full bg-background/80 text-ember shadow-xl transition-transform duration-500 group-hover:scale-110">
-                    <Play className="size-6 fill-current ml-0.5" />
-                  </div>
-                </span>
-                <span className="absolute top-4 left-4 rounded-full bg-ember px-3 py-1 text-[11px] font-bold tracking-wider text-white uppercase">
-                  Hero
-                </span>
-              </MediaThumb>
-            )}
+                )}
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                <div className="absolute right-4 bottom-4 left-4 flex flex-wrap items-center justify-between gap-2">
+                  <span className="rounded-full bg-background/85 px-3 py-1 text-[11px] font-bold tracking-wider text-foreground uppercase backdrop-blur">
+                    {creatorName}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-ember px-3 py-1 text-[11px] font-bold tracking-wider text-white uppercase">
+                    <span className="size-1.5 rounded-full bg-white" />
+                    Creating
+                  </span>
+                </div>
+              </div>
+            </div>
 
             {/* Floating chips */}
             {!reduced && (
@@ -266,37 +299,9 @@ export default function Home() {
                 </motion.div>
               </>
             )}
-          </motion.div>
-        </div>
-      </section>
 
-      {/* ============================ INTRO ============================ */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
-        <div className="grid gap-12 lg:grid-cols-[1fr_1.15fr] lg:gap-16">
-          <Reveal>
-            <p className="text-xs font-semibold tracking-[0.22em] text-ember uppercase">
-              Who's behind this
-            </p>
-            <h2 className="font-display mt-4 text-4xl leading-tight font-semibold tracking-tight text-foreground sm:text-5xl">
-              Hi, I'm
-              <br />
-              <span className="text-gradient-warm">Rabin Gaire.</span>
-            </h2>
-            <Link
-              to="/about"
-              className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-ember transition-colors hover:text-clay"
-            >
-              More about me
-              <ArrowUpRight className="size-4" />
-            </Link>
-          </Reveal>
-
-          <Reveal delay={0.12}>
-            <p className="text-lg leading-relaxed text-muted-foreground">
-              {settings?.introduction ||
-                "I build things with code and tell stories with film — exploring technology, learning, Nepal, education and science, and the human side of them all."}
-            </p>
-            <div className="mt-7 flex flex-wrap gap-2">
+            {/* Topics */}
+            <div className="mt-9 flex flex-wrap justify-center gap-2 lg:justify-start">
               {TOPICS.map((topic) => (
                 <span
                   key={topic.label}
@@ -307,7 +312,43 @@ export default function Home() {
                 </span>
               ))}
             </div>
-          </Reveal>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ========================= LATEST VIDEOS ========================= */}
+      <section className="mx-auto w-full max-w-6xl px-4 pb-20 sm:px-6">
+        <Reveal className="flex flex-wrap items-end justify-between gap-4">
+          <SectionHeading
+            eyebrow="Latest"
+            title="Latest videos"
+            description="Fresh from the edit — published straight from the dashboard."
+          />
+          <Link
+            to="/content"
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-ember/50 hover:text-ember"
+          >
+            View all content
+            <ArrowRight className="size-4" />
+          </Link>
+        </Reveal>
+
+        <div className="mt-10">
+          {latestVideoItems.length > 0 ? (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {latestVideoItems.map((post, index) => (
+                <Reveal key={post._id} delay={index * 0.07}>
+                  <ContentCard post={post} className="h-full" />
+                </Reveal>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={Play}
+              title="The first video is in the works"
+              description="New videos appear here the moment they're published from the dashboard."
+            />
+          )}
         </div>
       </section>
 
@@ -332,7 +373,8 @@ export default function Home() {
       </section>
 
       {/* ============================ FEATURED CONTENT ============================ */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
+      {showFeaturedSection && (
+        <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6">
         <Reveal className="flex flex-wrap items-end justify-between gap-4">
           <SectionHeading
             eyebrow="Watch"
@@ -374,7 +416,8 @@ export default function Home() {
             />
           )}
         </div>
-      </section>
+        </section>
+      )}
 
       {/* ============================ ARTICLES ============================ */}
       <section className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">

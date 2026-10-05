@@ -95,6 +95,26 @@ export const listLatestPosts = query({
   },
 });
 
+/**
+ * The homepage "Latest videos" grid: newest published videos first,
+ * ordered by publish date (falling back to creation date) so a post
+ * surfaces the moment it is published from the dashboard.
+ */
+export const listLatestVideos = query({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("posts").take(MAX_DOCS);
+    return all
+      .filter((post) => post.published === true)
+      .sort(
+        (a, b) =>
+          (b.publishedAt ?? b.createdAt ?? 0) -
+          (a.publishedAt ?? a.createdAt ?? 0),
+      )
+      .slice(0, 6);
+  },
+});
+
 export const getPostById = query({
   // Raw string on purpose: URL params can contain malformed ids — safeGet
   // returns null so the page can show its not-found state instead of throwing.

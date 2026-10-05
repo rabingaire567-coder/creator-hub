@@ -55,7 +55,7 @@ function navEntries(newMessages: number, newSubmissions: number): NavEntry[] {
     { to: "/admin/projects", label: "Projects", icon: FolderGit2 },
     { to: "/admin/tags", label: "Tags", icon: Tag },
     { to: "/admin/social", label: "Social links", icon: Share2 },
-    { to: "/admin/homepage", label: "Homepage", icon: PanelTop },
+    { to: "/admin/homepage", label: "Homepage Settings", icon: PanelTop },
     {
       to: "/admin/community",
       label: "Community",
