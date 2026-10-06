@@ -68,7 +68,9 @@ const siteSettingsTable = defineTable({
   siteUrl: v.optional(v.string()),
   defaultStatus: v.optional(v.string()),
   // The single owner/admin email. When set, only that account may run
-  // admin mutations. When unset, any signed-in account may bootstrap settings.
+  // admin mutations. When unset, only the earliest email account on the
+  // deployment (the site owner) may run them — self-serve sign-ups never
+  // qualify during that bootstrap window.
   adminEmail: v.optional(v.string()),
   createdAt: v.optional(v.number()),
 }).index("by_title", ["title"]);

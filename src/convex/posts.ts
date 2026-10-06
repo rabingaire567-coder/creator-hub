@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { isAdmin, requireAdmin, safeGet } from "./lib";
-import type { Doc } from "./_generated/dataModel";
+import type { DataModel, Doc } from "./_generated/dataModel";
 
 // ---- helpers ----
 
@@ -120,7 +120,7 @@ export const getPostById = query({
   // returns null so the page can show its not-found state instead of throwing.
   args: { id: v.string() },
   handler: async (ctx, args) => {
-    const post = await safeGet<Doc<"posts">>(ctx.db, args.id);
+    const post = await safeGet<Doc<"posts">, DataModel>(ctx.db, args.id);
     if (!post) return null;
     if (post.published !== true && !post.publishedAt) return null;
     return post;

@@ -6,36 +6,49 @@ import type {
   GenericDataModel,
   TableNamesInDataModel,
 } from "convex/server";
-import type { Id, TableNames } from "@/convex/_generated/dataModel";
+import type { Id, TableNames } from "./_generated/dataModel";
 
 /** Minimal ctx shape accepted by requireAdmin. The generated mutation ctx is
- * structurally assignable to this.
+ * structurally assignable to this — D is inferred from the caller's ctx.db.
  */
-export type AdminCtx = {
+export type AdminCtx<D extends GenericDataModel = GenericDataModel> = {
   auth: Auth;
-  db: GenericDatabaseReader<any>;
+  db: GenericDatabaseReader<D>;
 };
 
 /** Owner-only guard for admin mutations. */
-export async function requireAdmin(ctx: AdminCtx): Promise<string> {
+export async function requireAdmin<D extends GenericDataModel>(
+  ctx: AdminCtx<D>,
+): Promise<string> {
   const userId = await getAuthUserId(ctx);
   if (userId === null) throw new Error("Unauthorized");
   const settings = await ctx.db.query("siteSettings").first();
-  const adminEmail = settings?.adminEmail?.trim().toLowerCase();
+  const rawAdminEmail = settings?.adminEmail;
+  const adminEmail =
+    typeof rawAdminEmail === "string"
+      ? rawAdminEmail.trim().toLowerCase()
+      : undefined;
   const user = await ctx.db.get(userId);
-  const email = (user as { email?: string } | null)?.email?.trim().toLowerCase();
+  const rawEmail = user?.email;
+  const email =
+    typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : undefined;
   if (!adminEmail) {
-    // Bootstrap window — only the site owner's account may act as admin,
-    // i.e. the earliest email account on the deployment (the account that
-    // built the site). Self-serve sign-ups never get admin access here.
+    // Bootstrap window — until siteSettings.adminEmail is set, only the
+    // site owner may act as admin: the earliest email account on this
+    // deployment (the account that built the site). Anonymous accounts and
+    // self-serve sign-ups never qualify here.
     if (email) {
       const earliest = await ctx.db
         .query("users")
-        .order("desc")
-        .filter((q) => q.eq(q.field("email"), adminEmail))
+        .filter((q) => q.neq(q.field("email"), undefined))
+        .order("asc")
         .first();
-      void earliest;
-      return userId;
+      const rawEarliestEmail = earliest?.email;
+      const earliestEmail =
+        typeof rawEarliestEmail === "string"
+          ? rawEarliestEmail.trim().toLowerCase()
+          : undefined;
+      if (earliestEmail && earliestEmail === email) return userId;
     }
     throw new Error("Unauthorized");
   }
@@ -44,7 +57,9 @@ export async function requireAdmin(ctx: AdminCtx): Promise<string> {
 }
 
 /** Non-throwing predicate version of requireAdmin. */
-export async function isAdmin(ctx: AdminCtx): Promise<boolean> {
+export async function isAdmin<D extends GenericDataModel>(
+  ctx: AdminCtx<D>,
+): Promise<boolean> {
   try {
     await requireAdmin(ctx);
     return true;
@@ -53,14 +68,19 @@ export async function isAdmin(ctx: AdminCtx): Promise<boolean> {
   }
 }
 
-/** Safe db.get for ids that arrive as raw strings (e.g. from URL params). */
-export async function safeGet<T = unknown, D extends GenericDataModel = GenericDataModel>(
-  db: GenericDatabaseReader<D>,
-  id: Id<TableNamesInDataModel<D> & TableNames>,
-): Promise<T | null> {
+/** Safe db.get for ids that arrive as raw strings (e.g. from URL params).
+ * D is the caller's data model — pass it explicitly alongside T so the
+ * reader type matches: safeGet<Doc<"posts">, DataModel>(ctx.db, id).
+ */
+export async function safeGet<
+  T = unknown,
+  D extends GenericDataModel = GenericDataModel,
+>(db: GenericDatabaseReader<D>, id: string): Promise<T | null> {
   if (!id) return null;
   try {
-    return ((await db.get(id)) as T) ?? null;
+    return (
+      (await db.get(id as Id<TableNamesInDataModel<D> & TableNames>)) as T
+    ) ?? null;
   } catch {
     return null;
   }

@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { isAdmin, requireAdmin, safeGet } from "./lib";
-import type { Doc } from "./_generated/dataModel";
+import type { DataModel, Doc } from "./_generated/dataModel";
 
 // ---- helpers ----
 
@@ -72,7 +72,7 @@ export const getProjectById = query({
   // Raw string: URL params may contain malformed ids (see safeGet).
   args: { id: v.string() },
   handler: async (ctx, args) => {
-    const project = await safeGet<Doc<"projects">>(ctx.db, args.id);
+    const project = await safeGet<Doc<"projects">, DataModel>(ctx.db, args.id);
     if (!project) return null;
     if (project.published !== true) return null;
     return project;
