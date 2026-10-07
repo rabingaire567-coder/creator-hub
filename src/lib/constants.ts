@@ -27,6 +27,16 @@ export const PROJECT_STATUSES = [
   "Archived",
 ] as const;
 
+// Categories for the standalone 📄 PDF Library (separate from content types).
+export const PDF_CATEGORIES = [
+  "Guides",
+  "Templates",
+  "Tutorials",
+  "Cheat Sheets",
+  "Reports",
+  "eBooks",
+] as const;
+
 export const CONTACT_CATEGORIES = [
   "Brand Collaboration",
   "Content Collaboration",

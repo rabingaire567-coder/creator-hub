@@ -24,6 +24,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   ArrowUpRight,
   FileText,
+  Files,
   FolderGit2,
   LayoutDashboard,
   LogOut,
@@ -58,6 +59,7 @@ function navEntries(
     { to: "/admin/content", label: "Content", icon: Video },
     { to: "/admin/articles", label: "Articles", icon: FileText },
     { to: "/admin/projects", label: "Projects", icon: FolderGit2 },
+    { to: "/admin/pdfs", label: "📄 PDF Library", icon: Files },
     { to: "/admin/tags", label: "Tags", icon: Tag },
     { to: "/admin/social", label: "Social links", icon: Share2 },
     { to: "/admin/homepage", label: "Homepage Settings", icon: PanelTop },

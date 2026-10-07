@@ -28,6 +28,8 @@ const Articles = lazy(() => import("./pages/site/Articles.tsx"));
 const ArticleDetail = lazy(() => import("./pages/site/ArticleDetail.tsx"));
 const Projects = lazy(() => import("./pages/site/Projects.tsx"));
 const ProjectDetail = lazy(() => import("./pages/site/ProjectDetail.tsx"));
+const Pdfs = lazy(() => import("./pages/site/Pdfs.tsx"));
+const PdfDetail = lazy(() => import("./pages/site/PdfDetail.tsx"));
 const About = lazy(() => import("./pages/site/About.tsx"));
 const Community = lazy(() => import("./pages/site/Community.tsx"));
 const Contact = lazy(() => import("./pages/site/Contact.tsx"));
@@ -42,6 +44,7 @@ const AdminDashboard = lazy(() => import("./admin/AdminDashboard.tsx"));
 const AdminContent = lazy(() => import("./admin/AdminContent.tsx"));
 const AdminArticles = lazy(() => import("./admin/AdminArticles.tsx"));
 const AdminProjects = lazy(() => import("./admin/AdminProjects.tsx"));
+const AdminPdfs = lazy(() => import("./admin/AdminPdfs.tsx"));
 const AdminTags = lazy(() => import("./admin/AdminTags.tsx"));
 const AdminSocial = lazy(() => import("./admin/AdminSocial.tsx"));
 const AdminHomepage = lazy(() => import("./admin/AdminHomepage.tsx"));
@@ -188,6 +191,8 @@ createRoot(document.getElementById("root")!).render(
                     <Route path="/articles/:slug" element={<ArticleDetail />} />
                     <Route path="/projects" element={<Projects />} />
                     <Route path="/projects/:id" element={<ProjectDetail />} />
+                    <Route path="/pdfs" element={<Pdfs />} />
+                    <Route path="/pdfs/:id" element={<PdfDetail />} />
                     <Route path="/about" element={<About />} />
                     <Route path="/community" element={<Community />} />
                     <Route path="/contact" element={<Contact />} />
@@ -235,6 +240,7 @@ createRoot(document.getElementById("root")!).render(
                     <Route path="content" element={<AdminContent />} />
                     <Route path="articles" element={<AdminArticles />} />
                     <Route path="projects" element={<AdminProjects />} />
+                    <Route path="pdfs" element={<AdminPdfs />} />
                     <Route path="tags" element={<AdminTags />} />
                     <Route path="social" element={<AdminSocial />} />
                     <Route path="homepage" element={<AdminHomepage />} />

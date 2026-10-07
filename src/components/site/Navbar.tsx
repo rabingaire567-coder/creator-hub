@@ -36,6 +36,7 @@ const NAV_ITEMS = [
   { to: "/content", label: "Content" },
   { to: "/articles", label: "Articles" },
   { to: "/projects", label: "Projects" },
+  { to: "/pdfs", label: "📄 PDFs" },
   { to: "/about", label: "About" },
   { to: "/community", label: "Community" },
 ];

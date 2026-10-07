@@ -296,6 +296,34 @@ const creatorUpdatesTable = defineTable({
 }).index("by_created", ["createdAt"]);
 
 // ---------------------------------------------------------------------------
+// PDF Library — a standalone content type, fully separate from articles,
+// videos, projects and resources. The PDF bytes live in Convex file storage
+// (documents are capped at 1 MiB); the thumbnail follows the site-wide data-URL
+// pattern so it renders anywhere with no storage credentials.
+// ---------------------------------------------------------------------------
+const pdfsTable = defineTable({
+  title: v.string(),
+  description: v.optional(v.string()),
+  category: v.optional(v.string()),
+  // "public" (default) or "members" — a members-only file URL is only issued
+  // after the signed-in check in pdfs.ts, so visitors are asked to log in.
+  visibility: v.optional(v.string()),
+  published: v.optional(v.boolean()),
+  // Admin-chosen publish date (ms) shown on the public cards.
+  publishedAt: v.optional(v.number()),
+  // Convex file-storage id of the uploaded PDF (too large for a document).
+  fileStorageId: v.optional(v.string()),
+  fileName: v.optional(v.string()),
+  fileSize: v.optional(v.number()),
+  // Compressed JPEG data URL, validated server-side against the 1 MiB doc cap.
+  thumbnail: v.optional(v.string()),
+  createdAt: v.optional(v.number()),
+  updatedAt: v.optional(v.number()),
+})
+  .index("by_published", ["published"])
+  .index("by_category", ["category"]);
+
+// ---------------------------------------------------------------------------
 // Root schema
 // ---------------------------------------------------------------------------
 export default defineSchema(
@@ -312,6 +340,7 @@ export default defineSchema(
     socialLinks: socialLinksTable,
     communitySubmissions: communitySubmissionsTable,
     contactMessages: contactMessagesTable,
+    pdfs: pdfsTable,
 
     // community membership
     memberProfiles: memberProfilesTable,
@@ -334,6 +363,7 @@ export type Project = Infer<(typeof projectsTable)["validator"]>;
 export type SocialLink = Infer<(typeof socialLinksTable)["validator"]>;
 export type CommunitySubmission = Infer<(typeof communitySubmissionsTable)["validator"]>;
 export type ContactMessage = Infer<(typeof contactMessagesTable)["validator"]>;
+export type Pdf = Infer<(typeof pdfsTable)["validator"]>;
 export type MemberProfile = Infer<(typeof memberProfilesTable)["validator"]>;
 export type MemberMessage = Infer<(typeof memberMessagesTable)["validator"]>;
 export type MemberNotification = Infer<(typeof memberNotificationsTable)["validator"]>;
