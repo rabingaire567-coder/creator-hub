@@ -50,6 +50,8 @@ const AdminSocial = lazy(() => import("./admin/AdminSocial.tsx"));
 const AdminHomepage = lazy(() => import("./admin/AdminHomepage.tsx"));
 const AdminCommunity = lazy(() => import("./admin/AdminCommunity.tsx"));
 const AdminMembers = lazy(() => import("./admin/AdminMembers.tsx"));
+const AdminEditors = lazy(() => import("./admin/AdminEditors.tsx"));
+const AdminEditorDetail = lazy(() => import("./admin/AdminEditorDetail.tsx"));
 const AdminMessages = lazy(() => import("./admin/AdminMessages.tsx"));
 const AdminSettings = lazy(() => import("./admin/AdminSettings.tsx"));
 
@@ -68,6 +70,14 @@ const MemberSaved = lazy(() => import("./pages/member/MemberSaved.tsx"));
 const MemberSuggest = lazy(() => import("./pages/member/MemberSuggest.tsx"));
 const MemberUpdates = lazy(() => import("./pages/member/MemberUpdates.tsx"));
 const MemberProfile = lazy(() => import("./pages/member/MemberProfile.tsx"));
+
+// ---------------------------------------------------------------------------
+// Video editor area (private — wrapped in RequireAuth)
+// ---------------------------------------------------------------------------
+const EditorApp = lazy(() => import("./pages/editor/EditorApp.tsx"));
+const EditorHome = lazy(() => import("./pages/editor/EditorHome.tsx"));
+const EditorVideos = lazy(() => import("./pages/editor/EditorVideos.tsx"));
+const EditorPayments = lazy(() => import("./pages/editor/EditorPayments.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -227,6 +237,21 @@ createRoot(document.getElementById("root")!).render(
                     <Route path="*" element={<Navigate to="/member" replace />} />
                   </Route>
 
+                  {/* ---------------- Editor area ---------------- */}
+                  <Route
+                    path="/editor"
+                    element={
+                      <RequireAuth redirectImmediately>
+                        <EditorApp />
+                      </RequireAuth>
+                    }
+                  >
+                    <Route index element={<EditorHome />} />
+                    <Route path="videos" element={<EditorVideos />} />
+                    <Route path="payments" element={<EditorPayments />} />
+                    <Route path="*" element={<Navigate to="/editor" replace />} />
+                  </Route>
+
                   {/* ---------------- Admin studio ---------------- */}
                   <Route
                     path="/admin"
@@ -246,6 +271,8 @@ createRoot(document.getElementById("root")!).render(
                     <Route path="homepage" element={<AdminHomepage />} />
                     <Route path="community" element={<AdminCommunity />} />
                     <Route path="members" element={<AdminMembers />} />
+                    <Route path="editors" element={<AdminEditors />} />
+                    <Route path="editors/:id" element={<AdminEditorDetail />} />
                     <Route path="messages" element={<AdminMessages />} />
                     <Route path="settings" element={<AdminSettings />} />
                     <Route path="*" element={<Navigate to="/admin" replace />} />

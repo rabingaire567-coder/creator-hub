@@ -72,6 +72,17 @@ const siteSettingsTable = defineTable({
   // deployment (the site owner) may run them — self-serve sign-ups never
   // qualify during that bootstrap window.
   adminEmail: v.optional(v.string()),
+  // ---- Editor earnings settings (admin editable, no code changes) ----
+  // WhatsApp click-to-chat destination, digits only with country code.
+  whatsappNumber: v.optional(v.string()),
+  // Default base rate paid per 1,000 eligible views (Rs.).
+  editorRatePerThousand: v.optional(v.number()),
+  // Minimum outstanding balance before an editor may request a payout (Rs.).
+  editorMinPayout: v.optional(v.number()),
+  // JSON arrays: 4 ascending like/view percentage thresholds and the 5
+  // matching earning multipliers (1★ → 5★).
+  editorRatingThresholds: v.optional(v.string()),
+  editorRatingMultipliers: v.optional(v.string()),
   createdAt: v.optional(v.number()),
 }).index("by_title", ["title"]);
 
@@ -128,10 +139,24 @@ const postsTable = defineTable({
   updatedAt: v.optional(v.number()),
   // misc
   views: v.optional(v.number()),
+  // ---- Editor assignment / earnings (video editors, not viewers) ----
+  // Which editor is credited for this video. Assignment snapshots the view
+  // count so views from before the editor joined never count toward earnings.
+  editorId: v.optional(v.id("editorProfiles")),
+  editorAssignedAt: v.optional(v.number()),
+  editorInitialViews: v.optional(v.number()),
+  // Rate per 1,000 eligible views captured when the video was assigned, so a
+  // later settings change never silently rewrites historical earnings.
+  editorRateSnapshot: v.optional(v.number()),
+  // Latest public YouTube statistics (synced from the YouTube Data API).
+  ytViews: v.optional(v.number()),
+  ytLikes: v.optional(v.number()),
+  ytSyncedAt: v.optional(v.number()),
 })
   .index("by_categories", ["categories"])
   .index("by_featured", ["featured"])
-  .index("by_published", ["published"]);
+  .index("by_published", ["published"])
+  .index("by_editor", ["editorId"]);
 
 // ---------------------------------------------------------------------------
 // Articles — full editorial blog posts
@@ -324,6 +349,80 @@ const pdfsTable = defineTable({
   .index("by_category", ["category"]);
 
 // ---------------------------------------------------------------------------
+// Video editor profiles. An editor is a signed-in account (linked by userId
+// once the account is known) with assignable videos and manual payouts.
+// ---------------------------------------------------------------------------
+const editorProfilesTable = defineTable({
+  // Optional until the matching account signs in and links itself by email.
+  userId: v.optional(v.id("users")),
+  email: v.optional(v.string()),
+  displayName: v.string(),
+  username: v.string(),
+  bio: v.optional(v.string()),
+  // Profile picture as a compressed base64 data URL (same site-wide pattern).
+  photo: v.optional(v.string()),
+  // "active" (default) or "disabled" — disabled editors cannot sign in to the
+  // editor area or request payouts.
+  status: v.optional(v.string()),
+  createdAt: v.optional(v.number()),
+  updatedAt: v.optional(v.number()),
+})
+  .index("by_user", ["userId"])
+  .index("by_username", ["username"])
+  .index("by_email", ["email"]);
+
+// ---------------------------------------------------------------------------
+// Editor payments — append-only audit trail of money actually paid out by the
+// admin. A record may be tied to one video or be a general adjustment.
+// ---------------------------------------------------------------------------
+const editorPaymentsTable = defineTable({
+  editorId: v.id("editorProfiles"),
+  postId: v.optional(v.id("posts")),
+  amount: v.number(),
+  paidAt: v.number(),
+  reference: v.optional(v.string()),
+  notes: v.optional(v.string()),
+  // "esewa" | "bank" | "cash" | "other"
+  method: v.optional(v.string()),
+  // Set when this payment settled a payment request.
+  requestId: v.optional(v.id("paymentRequests")),
+  createdAt: v.optional(v.number()),
+  updatedAt: v.optional(v.number()),
+})
+  .index("by_editor", ["editorId"])
+  .index("by_post", ["postId"])
+  .index("by_editor_paid", ["editorId", "paidAt"]);
+
+// ---------------------------------------------------------------------------
+// Payment requests raised by editors. Payments happen manually outside the
+// site (eSewa / bank / cash); the request only carries the editor's QR code
+// and the WhatsApp message snapshots used for the admin review.
+// ---------------------------------------------------------------------------
+const paymentRequestsTable = defineTable({
+  editorId: v.id("editorProfiles"),
+  postId: v.optional(v.id("posts")),
+  amount: v.number(),
+  eligibleViews: v.number(),
+  rating: v.number(),
+  multiplier: v.number(),
+  totalEarnings: v.number(),
+  paidSoFar: v.number(),
+  // Compressed eSewa QR image data URL (≤ 450 KB, re-validated server-side).
+  qrCode: v.optional(v.string()),
+  // "pending" | "paid" | "rejected" | "cancelled"
+  status: v.string(),
+  note: v.optional(v.string()),
+  adminNote: v.optional(v.string()),
+  createdAt: v.optional(v.number()),
+  reviewedAt: v.optional(v.number()),
+  reviewedBy: v.optional(v.string()),
+  paymentId: v.optional(v.id("editorPayments")),
+})
+  .index("by_editor", ["editorId"])
+  .index("by_status", ["status"])
+  .index("by_post", ["postId"]);
+
+// ---------------------------------------------------------------------------
 // Root schema
 // ---------------------------------------------------------------------------
 export default defineSchema(
@@ -341,6 +440,11 @@ export default defineSchema(
     communitySubmissions: communitySubmissionsTable,
     contactMessages: contactMessagesTable,
     pdfs: pdfsTable,
+
+    // video editor programme
+    editorProfiles: editorProfilesTable,
+    editorPayments: editorPaymentsTable,
+    paymentRequests: paymentRequestsTable,
 
     // community membership
     memberProfiles: memberProfilesTable,
@@ -369,3 +473,6 @@ export type MemberMessage = Infer<(typeof memberMessagesTable)["validator"]>;
 export type MemberNotification = Infer<(typeof memberNotificationsTable)["validator"]>;
 export type SavedContent = Infer<(typeof savedContentTable)["validator"]>;
 export type CreatorUpdate = Infer<(typeof creatorUpdatesTable)["validator"]>;
+export type EditorProfile = Infer<(typeof editorProfilesTable)["validator"]>;
+export type EditorPayment = Infer<(typeof editorPaymentsTable)["validator"]>;
+export type PaymentRequest = Infer<(typeof paymentRequestsTable)["validator"]>;

@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUpRight,
+  Clapperboard,
   LayoutDashboard,
   Menu,
   Search,
@@ -64,6 +65,7 @@ export function Navbar({ onSearch }: { onSearch: () => void }) {
   const settings = useQuery(api.site.getSiteSettings);
   const socialLinks = useQuery(api.social.listSocialLinks);
   const { isAuthenticated } = useAuth();
+  const isEditor = useQuery(api.editors.hasEditorProfile) === true;
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
@@ -176,6 +178,21 @@ export function Navbar({ onSearch }: { onSearch: () => void }) {
             </Link>
           </Button>
 
+          {/* Editor area — only shown to accounts linked to an editor profile */}
+          {isEditor && (
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="hidden rounded-full text-muted-foreground hover:text-ember sm:inline-flex"
+            >
+              <Link to="/editor">
+                <Clapperboard className="size-3.5" />
+                Editor
+              </Link>
+            </Button>
+          )}
+
           {/* Owner studio — routes through RequireAuth to /auth with returnTo */}
           <Button
             asChild
@@ -286,6 +303,16 @@ export function Navbar({ onSearch }: { onSearch: () => void }) {
                   Contact
                   <ArrowUpRight className="size-4 opacity-40" />
                 </NavLink>
+                {isEditor && (
+                  <NavLink
+                    to="/editor"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center justify-between rounded-xl px-4 py-3 text-lg font-medium text-foreground hover:bg-muted"
+                  >
+                    Editor area
+                    <Clapperboard className="size-4 opacity-60" />
+                  </NavLink>
+                )}
                 <NavLink
                   to="/admin"
                   onClick={() => setMobileOpen(false)}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
-import type { Doc } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import {
@@ -12,6 +12,7 @@ import {
   Trash2,
   Eye,
   EyeOff,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +23,14 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { VideoEarningsPanel } from "@/admin/VideoEarningsPanel";
 import {
   Table,
   TableBody,
@@ -48,6 +57,20 @@ interface PostFormValues {
   tags: string;
   featured: boolean;
   published: boolean;
+  // Editor programme — the assignment itself is saved through
+  // api.editors.assignVideoToEditor after the post is created/updated.
+  editorId: string;
+  assignedAt: string;
+  initialViews: string;
+}
+
+function todayInput(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function dateInput(ts?: number | null): string {
+  if (!ts) return "";
+  return new Date(ts).toISOString().slice(0, 10);
 }
 
 function emptyForm(): PostFormValues {
@@ -62,6 +85,9 @@ function emptyForm(): PostFormValues {
     tags: "",
     featured: false,
     published: false,
+    editorId: "none",
+    assignedAt: todayInput(),
+    initialViews: "",
   };
 }
 
@@ -77,6 +103,12 @@ function fromPost(post: PostDoc): PostFormValues {
     tags: (post.tags ?? []).join(", "),
     featured: post.featured ?? false,
     published: post.published ?? false,
+    editorId: post.editorId ?? "none",
+    assignedAt: dateInput(post.editorAssignedAt) || todayInput(),
+    initialViews:
+      post.editorInitialViews !== undefined
+        ? String(post.editorInitialViews)
+        : "",
   };
 }
 
@@ -89,6 +121,8 @@ function PostEditor({
 }) {
   const createPost = useMutation(api.posts.createPost);
   const updatePost = useMutation(api.posts.updatePost);
+  const assignVideo = useMutation(api.editors.assignVideoToEditor);
+  const editorOptions = useQuery(api.editors.listEditorOptions);
   const [form, setForm] = useState<PostFormValues>(
     post ? fromPost(post) : emptyForm(),
   );
@@ -128,14 +162,37 @@ function PostEditor({
       published: form.published,
     };
     setSaving(true);
-    const ok = await runAction(
-      () =>
-        post ? updatePost({ id: post._id, patch: payload }) : createPost(payload),
-      post ? "Content updated." : "Content created.",
-      toast,
-    );
-    setSaving(false);
-    if (ok) onOpenChange(false);
+    try {
+      const id = post ? post._id : await createPost(payload);
+      if (post) await updatePost({ id: post._id, patch: payload });
+      // The assignment lives on the post and is validated server-side; it is
+      // saved separately so the earnings snapshot is never client-authored.
+      if (form.editorId !== "none") {
+        const assignedAt = form.assignedAt
+          ? new Date(`${form.assignedAt}T00:00:00`).getTime()
+          : undefined;
+        await assignVideo({
+          postId: id,
+          editorId: form.editorId as Id<"editorProfiles">,
+          assignedAt:
+            assignedAt && Number.isFinite(assignedAt) ? assignedAt : undefined,
+          initialViews:
+            form.initialViews.trim() === ""
+              ? undefined
+              : Number(form.initialViews),
+        });
+      } else if (post?.editorId) {
+        await assignVideo({ postId: post._id, editorId: null });
+      }
+      toast.success(post ? "Content updated." : "Content created.");
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Something went wrong.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -243,6 +300,70 @@ function PostEditor({
           />
         </div>
 
+        <div className="space-y-3 rounded-xl border border-border/70 bg-background/40 p-4">
+          <div>
+            <p className="text-sm font-medium">Editor assignment</p>
+            <p className="text-xs text-muted-foreground">
+              Assigning a video adds it to that editor&apos;s dashboard. The
+              current view count is snapshotted so earlier views never earn.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>Editor</Label>
+              <Select
+                value={form.editorId}
+                onValueChange={(value) => set("editorId", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Unassigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Unassigned</SelectItem>
+                  {(editorOptions ?? []).map((editor) => (
+                    <SelectItem key={editor._id} value={editor._id}>
+                      {editor.displayName} (@{editor.username})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {editorOptions && editorOptions.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No editors yet — add one under Editors first.
+                </p>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="post-assigned">Assignment date</Label>
+              <Input
+                id="post-assigned"
+                type="date"
+                value={form.assignedAt}
+                onChange={(e) => set("assignedAt", e.target.value)}
+                disabled={form.editorId === "none"}
+              />
+            </div>
+          </div>
+          {form.editorId !== "none" && (
+            <div className="grid gap-2">
+              <Label htmlFor="post-initial-views">Initial eligible views</Label>
+              <Input
+                id="post-initial-views"
+                type="number"
+                min={0}
+                step={1}
+                value={form.initialViews}
+                onChange={(e) => set("initialViews", e.target.value)}
+                placeholder={`Current views (${post?.ytViews ?? 0})`}
+              />
+              <p className="text-xs text-muted-foreground">
+                Views at assignment. Only views above this count earn. Leave
+                empty to snapshot the current view count.
+              </p>
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-wrap items-center gap-6 rounded-xl border border-border/70 bg-background/40 px-4 py-3">
           <label className="flex items-center gap-2 text-sm font-medium">
             <Switch
@@ -283,6 +404,12 @@ export default function AdminContent() {
   const [page, setPage] = useState(1);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<PostDoc | null>(null);
+  const [earningsPost, setEarningsPost] = useState<PostDoc | null>(null);
+
+  const editorOptions = useQuery(api.editors.listEditorOptions);
+  const editorById = new Map(
+    (editorOptions ?? []).map((editor) => [editor._id as string, editor]),
+  );
 
   const posts = useQuery(api.posts.listPosts, {
     includeDrafts: true,
@@ -358,6 +485,7 @@ export default function AdminContent() {
                   <TableHead className="hidden md:table-cell">
                     Categories
                   </TableHead>
+                  <TableHead className="hidden lg:table-cell">Editor</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="hidden lg:table-cell">Updated</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -391,6 +519,18 @@ export default function AdminContent() {
                         ))}
                       </div>
                     </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {post.editorId ? (
+                        <span className="text-sm">
+                          {editorById.get(post.editorId as string)
+                            ?.displayName ?? "Assigned"}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Unassigned
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <StatusPill
                         status={post.published ? "published" : "draft"}
@@ -401,6 +541,15 @@ export default function AdminContent() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          title="Video earnings & payments"
+                          onClick={() => setEarningsPost(post)}
+                        >
+                          <Wallet className="size-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -517,6 +666,16 @@ export default function AdminContent() {
           />
         )}
       </Dialog>
+
+      {earningsPost && (
+        <VideoEarningsPanel
+          postId={earningsPost._id}
+          open={earningsPost !== null}
+          onOpenChange={(open) => {
+            if (!open) setEarningsPost(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -23,6 +23,7 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   ArrowUpRight,
+  Clapperboard,
   FileText,
   Files,
   FolderGit2,
@@ -53,10 +54,17 @@ function navEntries(
   newMessages: number,
   newSubmissions: number,
   newMemberMessages: number,
+  pendingPayouts = 0,
 ): NavEntry[] {
   return [
     { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
     { to: "/admin/content", label: "Content", icon: Video },
+    {
+      to: "/admin/editors",
+      label: "Editors",
+      icon: Clapperboard,
+      badge: pendingPayouts,
+    },
     { to: "/admin/articles", label: "Articles", icon: FileText },
     { to: "/admin/projects", label: "Projects", icon: FolderGit2 },
     { to: "/admin/pdfs", label: "📄 PDF Library", icon: Files },
@@ -135,8 +143,14 @@ export default function AdminApp() {
   const newMessages = useQuery(api.contact.countNewContactMessages) ?? 0;
   const newSubmissions = useQuery(api.community.countNewSubmissions) ?? 0;
   const newMemberMessages = useQuery(api.members.adminUnreadCount) ?? 0;
+  const pendingPayouts = useQuery(api.editors.adminPendingRequestCount) ?? 0;
   const isOwner = useQuery(api.site.isAdmin);
-  const entries = navEntries(newMessages, newSubmissions, newMemberMessages);
+  const entries = navEntries(
+    newMessages,
+    newSubmissions,
+    newMemberMessages,
+    pendingPayouts,
+  );
 
   const handleSignOut = async () => {
     await signOut();
