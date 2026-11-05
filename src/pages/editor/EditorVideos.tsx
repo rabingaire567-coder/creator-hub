@@ -280,30 +280,11 @@ function VideoCard({
   video,
   minPayout,
   onRequest,
-  editorName,
-  whatsappNumber,
 }: {
   video: EditorVideo;
   minPayout: number;
   onRequest: (video: EditorVideo) => void;
-  editorName: string;
-  whatsappNumber: string;
 }) {
-  const canRequest =
-    !video.pendingRequestId &&
-    video.eligibleViews > 0 &&
-    video.remaining + 0.005 >= minPayout;
-  const { url: whatsappUrl } = buildPaymentRequestLink(whatsappNumber, {
-    editorName,
-    videoTitle: video.title,
-    youtubeUrl: video.youtubeUrl,
-    eligibleViews: video.eligibleViews,
-    rating: video.stars,
-    totalEarnings: video.totalEarnings,
-    paid: video.paid,
-    requestedAmount: video.remaining,
-  });
-
   return (
     <Card className="overflow-hidden border-border/70 bg-card/60">
       <div className="relative aspect-video w-full bg-muted">
@@ -417,13 +398,6 @@ function VideoCard({
           <Button disabled variant="outline" className="w-full rounded-full">
             <Clock className="size-4" /> Payout request pending
           </Button>
-        ) : canRequest ? (
-          <Button
-            className="w-full rounded-full bg-ember text-white hover:brightness-110"
-            onClick={() => onRequest(video)}
-          >
-            <Wallet className="size-4" /> Request payment
-          </Button>
         ) : video.eligibleViews <= 0 ? (
           <p className="rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-center text-xs text-muted-foreground">
             Earnings start once new views arrive after assignment.
@@ -432,15 +406,13 @@ function VideoCard({
           <p className="rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-center text-xs text-muted-foreground">
             Request a payout once at least {formatRs(minPayout)} is outstanding.
           </p>
-        ) : whatsappUrl === null ? (
-          <p className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-gold">
-            WhatsApp isn&apos;t configured yet. Ask the owner to set their
-            WhatsApp number in the editor settings.
-          </p>
         ) : (
-          <p className="rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-center text-xs text-muted-foreground">
-            Payment requests are available for your unpaid balance.
-          </p>
+          <Button
+            className="w-full rounded-full bg-ember text-white hover:brightness-110"
+            onClick={() => onRequest(video)}
+          >
+            <Wallet className="size-4" /> Request payment
+          </Button>
         )}
       </CardContent>
     </Card>
@@ -479,6 +451,14 @@ export default function EditorVideos() {
           )}
         </div>
       </div>
+
+      {!settings.whatsappNumber && (
+        <p className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-xs text-gold">
+          WhatsApp isn&apos;t configured yet. You can still submit a payment
+          request — the owner sees it in their payout queue — but no WhatsApp
+          message will open until they add their number in the editor settings.
+        </p>
+      )}
 
       {!youtubeConfigured && (
         <Card className="border-gold/30 bg-gold/5">
@@ -520,8 +500,6 @@ export default function EditorVideos() {
                 video={video}
                 minPayout={settings.minPayout}
                 onRequest={setRequestVideo}
-                editorName={editor.displayName}
-                whatsappNumber={settings.whatsappNumber}
               />
             </Reveal>
           ))}

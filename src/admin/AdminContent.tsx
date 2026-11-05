@@ -320,11 +320,18 @@ function PostEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Unassigned</SelectItem>
-                  {(editorOptions ?? []).map((editor) => (
-                    <SelectItem key={editor._id} value={editor._id}>
-                      {editor.displayName} (@{editor.username})
-                    </SelectItem>
-                  ))}
+                  {(editorOptions ?? [])
+                    .filter(
+                      (editor) =>
+                        editor.status !== "disabled" ||
+                        editor._id === post?.editorId,
+                    )
+                    .map((editor) => (
+                      <SelectItem key={editor._id} value={editor._id}>
+                        {editor.displayName} (@{editor.username})
+                        {editor.status === "disabled" ? " — disabled" : ""}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               {editorOptions && editorOptions.length === 0 && (

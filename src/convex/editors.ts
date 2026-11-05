@@ -238,7 +238,9 @@ export const myDashboard = query({
         status: request.status,
         note: request.note ?? null,
         adminNote: request.adminNote ?? null,
-        qrCode: request.qrCode ?? null,
+        // The QR can be up to 450 KB, so it is fetched on demand instead of
+        // bloating every dashboard payload.
+        hasQr: Boolean(request.qrCode),
         createdAt: request.createdAt ?? null,
         reviewedAt: request.reviewedAt ?? null,
         videoTitle: request.postId
@@ -349,6 +351,19 @@ export const createPaymentRequest = mutation({
       createdAt: now,
     });
     return id;
+  },
+});
+
+/** Returns the caller's own eSewa QR for one request, on demand. */
+export const myPaymentRequestQr = query({
+  args: { requestId: v.id("paymentRequests") },
+  handler: async (ctx, args) => {
+    const editor = await requireEditor(ctx);
+    const request = await ctx.db.get(args.requestId);
+    if (!request || request.editorId !== editor._id) {
+      throw new Error("Payment request not found.");
+    }
+    return request.qrCode ?? null;
   },
 });
 
@@ -750,9 +765,9 @@ export const adminUpdateEditor = mutation({
     if (args.patch.email !== undefined) {
       const email = normaliseEmail(args.patch.email);
       patch.email = email;
-      if (email && !editor.userId) {
-        patch.userId = await linkUserByEmail(ctx, email);
-      }
+      // The email identifies the account, so relink (or unlink) whenever it
+      // changes — otherwise a replaced editor would keep access.
+      patch.userId = await linkUserByEmail(ctx, email);
     }
     if (args.patch.bio !== undefined) {
       patch.bio = args.patch.bio.trim().slice(0, 400) || undefined;

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useOutletContext } from "react-router";
 import { api } from "@/convex/_generated/api";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import {
   Clock,
@@ -14,6 +14,13 @@ import {
 import type { EditorOutletContext } from "./EditorApp";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -35,6 +42,44 @@ const REQUEST_TONE: Record<string, string> = {
   rejected: "border-destructive/30 bg-destructive/10 text-destructive",
   cancelled: "border-border bg-muted text-muted-foreground",
 };
+
+/** Shows the uploaded eSewa QR in a dialog (data: URLs cannot be navigated). */
+function QrPreview({ requestId }: { requestId: PaymentRequestRow["_id"] }) {
+  const [open, setOpen] = useState(false);
+  const qr = useQuery(
+    api.editors.myPaymentRequestQr,
+    open ? { requestId } : "skip",
+  );
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 text-ember hover:underline"
+        onClick={() => setOpen(true)}
+      >
+        <ImageIcon className="size-3.5" /> View eSewa QR
+      </button>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="font-display">eSewa QR code</DialogTitle>
+        </DialogHeader>
+        {qr === undefined ? (
+          <Skeleton className="mx-auto aspect-square w-full max-w-64" />
+        ) : qr === null ? (
+          <p className="text-sm text-muted-foreground">
+            No QR code was attached to this request.
+          </p>
+        ) : (
+          <img
+            src={qr}
+            alt="eSewa QR code"
+            className="mx-auto max-h-80 rounded-xl border border-border/70 bg-white object-contain p-2"
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function RequestCard({ request }: { request: PaymentRequestRow }) {
   const cancel = useMutation(api.editors.cancelPaymentRequest);
@@ -119,15 +164,8 @@ function RequestCard({ request }: { request: PaymentRequestRow }) {
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {request.qrCode ? (
-              <a
-                href={request.qrCode}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-ember hover:underline"
-              >
-                <ImageIcon className="size-3.5" /> View eSewa QR
-              </a>
+            {request.hasQr ? (
+              <QrPreview requestId={request._id} />
             ) : (
               <span className="inline-flex items-center gap-1">
                 <ImageIcon className="size-3.5" /> No QR attached
