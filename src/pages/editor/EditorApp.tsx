@@ -157,16 +157,19 @@ export default function EditorApp() {
               <UserRoundX className="size-5 text-ember" />
             </div>
             <CardTitle className="font-display text-xl">
-              No editor profile yet
+              Become an editor
             </CardTitle>
             <CardDescription>
-              This account isn&apos;t linked to an editor profile. Ask the site
-              owner to add you as an editor using this email
-              {user?.email ? ` (${user.email})` : ""}, then refresh this page.
+              Editor access is activated from the community page with this
+              account. Join or sign in to the community, then activate your
+              editor profile — your dashboard is created automatically.
             </CardDescription>
           </CardHeader>
           <CardFooter className="flex-col gap-2">
             <Button asChild className="w-full rounded-full">
+              <Link to="/community#become-editor">Become an editor</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full rounded-full">
               <Link to="/member">Go to the member area</Link>
             </Button>
             <Button

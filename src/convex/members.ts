@@ -48,7 +48,7 @@ async function getProfileByUser(
  * Creates the community profile on first touch (signup + first visit to the
  * member area). Idempotent, so it is safe to call from several places.
  */
-async function ensureProfile(
+export async function ensureProfile(
   ctx: MutationCtx,
   userId: Id<"users">,
 ): Promise<Doc<"memberProfiles">> {

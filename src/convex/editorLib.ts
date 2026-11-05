@@ -246,7 +246,7 @@ export async function requireEditor(
   const editor = await findEditorForUser(ctx, userId);
   if (!editor) {
     throw new Error(
-      "No editor profile is linked to this account. Ask the site owner to add you as an editor.",
+      "Activate editor access from the community page to use the editor area.",
     );
   }
   if (editor.status === "disabled") {

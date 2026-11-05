@@ -10,7 +10,6 @@ import {
   ImageIcon,
   Loader2,
   Pencil,
-  Plus,
   RefreshCw,
   Search,
   Settings2,
@@ -85,10 +84,9 @@ export function EditorDialog({
   editor,
   onOpenChange,
 }: {
-  editor: Doc<"editorProfiles"> | null;
+  editor: Doc<"editorProfiles">;
   onOpenChange: (open: boolean) => void;
 }) {
-  const createEditor = useMutation(api.editors.adminCreateEditor);
   const updateEditor = useMutation(api.editors.adminUpdateEditor);
   const [displayName, setDisplayName] = useState(editor?.displayName ?? "");
   const [username, setUsername] = useState(editor?.username ?? "");
@@ -121,25 +119,18 @@ export function EditorDialog({
       username: username.trim(),
       email: email.trim() || undefined,
       bio: bio.trim() || undefined,
-      // An empty string clears a stored photo on edit; undefined means "no
-      // change" for a new profile.
-      photo: photo || (editor ? "" : undefined),
+      // An empty string clears the stored photo.
+      photo: photo || "",
     };
-    const ok = editor
-      ? await runAction(
-          () =>
-            updateEditor({
-              editorId: editor._id,
-              patch: { ...payload, status },
-            }),
-          "Editor updated.",
-          toast,
-        )
-      : await runAction(
-          () => createEditor(payload),
-          "Editor added. Assign videos from Content.",
-          toast,
-        );
+    const ok = await runAction(
+      () =>
+        updateEditor({
+          editorId: editor._id,
+          patch: { ...payload, status },
+        }),
+      "Editor updated.",
+      toast,
+    );
     setSaving(false);
     if (ok) onOpenChange(false);
   };
@@ -147,11 +138,10 @@ export function EditorDialog({
   return (
     <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
       <DialogHeader>
-        <DialogTitle className="font-display">
-          {editor ? "Edit editor" : "Add editor"}
-        </DialogTitle>
+        <DialogTitle className="font-display">Edit editor</DialogTitle>
         <DialogDescription>
           Editors only see their own assigned videos, earnings and payments.
+          Profiles come from community members, so create nothing by hand.
         </DialogDescription>
       </DialogHeader>
       <form onSubmit={submit} className="space-y-4">
@@ -246,24 +236,22 @@ export function EditorDialog({
           />
         </div>
 
-        {editor && (
-          <div className="grid gap-2">
-            <Label>Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="disabled">Disabled</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Disabled editors keep their history but cannot access the editor
-              area or request payouts.
-            </p>
-          </div>
-        )}
+        <div className="grid gap-2">
+          <Label>Status</Label>
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="disabled">Disabled</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Disabled editors keep their history but cannot access the editor
+            area or request payouts.
+          </p>
+        </div>
 
         <DialogFooter className="gap-2">
           <Button
@@ -279,7 +267,7 @@ export function EditorDialog({
             className="rounded-full"
             disabled={saving || processingPhoto}
           >
-            {saving ? "Saving…" : editor ? "Save changes" : "Add editor"}
+            {saving ? "Saving…" : "Save changes"}
           </Button>
         </DialogFooter>
       </form>
@@ -693,23 +681,15 @@ export default function AdminEditors() {
     <div>
       <AdminPageHeader
         title="Editors"
-        description="Editor profiles, assigned videos, earnings and manual payouts."
+        description="Community members who activated editor access, with their videos, earnings and manual payouts."
         actions={
-          <>
-            <Button
-              variant="outline"
-              className="rounded-full"
-              onClick={() => setSettingsOpen(true)}
-            >
-              <Settings2 className="size-4" /> Settings
-            </Button>
-            <Button
-              className="rounded-full"
-              onClick={() => setEditorDialog({ open: true, editor: null })}
-            >
-              <Plus className="size-4" /> Add editor
-            </Button>
-          </>
+          <Button
+            variant="outline"
+            className="rounded-full"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings2 className="size-4" /> Settings
+          </Button>
         }
       />
 
@@ -762,7 +742,7 @@ export default function AdminEditors() {
                   <UserRoundX className="size-8 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
                     {items.length === 0
-                      ? "No editors yet. Add your first editor to start assigning videos."
+                      ? "No editors yet. Community members appear here after they activate editor access on the community page."
                       : "No editors match that search."}
                   </p>
                 </div>
@@ -1051,9 +1031,9 @@ export default function AdminEditors() {
           setEditorDialog((prev) => ({ ...prev, open }))
         }
       >
-        {editorDialog.open && (
+        {editorDialog.open && editorDialog.editor && (
           <EditorDialog
-            key={editorDialog.editor?._id ?? "new"}
+            key={editorDialog.editor._id}
             editor={editorDialog.editor}
             onOpenChange={(open) =>
               setEditorDialog((prev) => ({ ...prev, open }))

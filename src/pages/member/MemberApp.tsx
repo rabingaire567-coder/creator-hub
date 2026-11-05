@@ -25,6 +25,7 @@ import {
   ArrowUpRight,
   Bell,
   Bookmark,
+  Clapperboard,
   Home,
   Lightbulb,
   LogOut,
@@ -122,6 +123,7 @@ export default function MemberApp() {
   const unreadMessages = useQuery(api.members.countUnreadMessages) ?? 0;
   const unreadNotifications =
     useQuery(api.members.countUnreadNotifications) ?? 0;
+  const hasEditorAccess = useQuery(api.editors.hasEditorProfile) ?? false;
   const ensureMyProfile = useMutation(api.members.ensureMyProfile);
 
   // Auto-create the community profile after signup / first visit.
@@ -135,7 +137,16 @@ export default function MemberApp() {
     });
   }, [authLoading, profile, ensureMyProfile]);
 
-  const entries = navEntries(unreadMessages, unreadNotifications);
+  const entries: NavEntry[] = [
+    ...navEntries(unreadMessages, unreadNotifications),
+    hasEditorAccess
+      ? { to: "/editor", label: "Editor dashboard", icon: Clapperboard }
+      : {
+          to: "/community#become-editor",
+          label: "Become an editor",
+          icon: Clapperboard,
+        },
+  ];
 
   const handleSignOut = async () => {
     await signOut();

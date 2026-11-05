@@ -1,17 +1,21 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router";
 import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import {
   ArrowRight,
   CheckCircle2,
+  Clapperboard,
   Lightbulb,
   MessagesSquare,
   Newspaper,
   Radio,
   Send,
+  Star,
+  Wallet,
 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,6 +67,56 @@ export default function Community() {
 
   const createSubmission = useMutation(api.community.createSubmission);
   const socialLinks = useQuery(api.social.listSocialLinks) ?? [];
+  const settings = useQuery(api.site.getSiteSettings);
+  const { user, isLoading: authLoading } = useAuth();
+  const editorStatus = useQuery(api.editors.myEditorStatus);
+  const becomeEditor = useMutation(api.editors.becomeEditor);
+  const navigate = useNavigate();
+  const [activating, setActivating] = useState(false);
+  const [activationError, setActivationError] = useState<string | null>(null);
+
+  const ratePerThousand =
+    typeof settings?.editorRatePerThousand === "number"
+      ? settings.editorRatePerThousand
+      : 1;
+  const minPayout =
+    typeof settings?.editorMinPayout === "number" ? settings.editorMinPayout : 10;
+
+  // The homepage links here with #become-editor; scroll once on arrival.
+  useEffect(() => {
+    if (window.location.hash !== "#become-editor") return;
+    const section = document.getElementById("become-editor");
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  const activateEditor = async () => {
+    setActivating(true);
+    setActivationError(null);
+    try {
+      const result = await becomeEditor();
+      if (result.status === "disabled") {
+        toast.error(
+          "Your editor access is paused. Contact the site owner if this is a mistake.",
+        );
+        return;
+      }
+      toast.success(
+        result.created
+          ? "Editor profile activated — welcome aboard!"
+          : "Your editor profile is ready.",
+      );
+      navigate("/editor");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not activate editor access. Please try again.";
+      setActivationError(message);
+      toast.error(message);
+    } finally {
+      setActivating(false);
+    }
+  };
 
   const [form, setForm] = useState({
     name: "",
@@ -141,6 +195,130 @@ export default function Community() {
       />
 
       <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6">
+        {/* Editor recruitment — activation reuses the community account. */}
+        <Reveal>
+          <div
+            id="become-editor"
+            className="grain relative mb-12 scroll-mt-24 overflow-hidden rounded-3xl border border-ember/25 bg-gradient-to-br from-ember/15 via-card to-gold/10 p-6 sm:p-8"
+          >
+            <div className="grid gap-7 lg:grid-cols-[1fr_17rem] lg:items-center">
+              <div>
+                <span className="inline-flex items-center gap-2 rounded-full border border-ember/30 bg-ember/10 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-ember uppercase">
+                  <Clapperboard className="size-3.5" /> Paid editor programme
+                </span>
+                <h2 className="font-display mt-4 text-2xl font-semibold text-foreground sm:text-3xl">
+                  Become a creator hub editor
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+                  Membership is the application. Activate your editor profile
+                  with this same community account — no second form, no new
+                  login — and get YouTube videos assigned to you.
+                </p>
+                <ul className="mt-5 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                  <li className="flex items-start gap-2">
+                    <Wallet className="mt-0.5 size-4 shrink-0 text-ember" />
+                    Rs. {ratePerThousand} per 1,000 eligible views, counted after
+                    assignment
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Star className="mt-0.5 size-4 shrink-0 text-gold" />
+                    Creator Hub rating bonus of up to 1.5× on your base earnings
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-sage" />
+                    Manual eSewa payouts requested through WhatsApp, from Rs.{" "}
+                    {minPayout}
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Clapperboard className="mt-0.5 size-4 shrink-0 text-ember" />
+                    A private dashboard for your videos, views, ratings and
+                    payments
+                  </li>
+                </ul>
+              </div>
+
+              <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-background/50 p-4 lg:p-5">
+                {authLoading || (user && editorStatus === undefined) ? (
+                  <Button disabled className="w-full rounded-full">
+                    Checking your account…
+                  </Button>
+                ) : !user ? (
+                  <>
+                    <p className="text-sm font-medium text-foreground">
+                      Join the community to start
+                    </p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Sign in or create your free account, then activate editor
+                      access here. Your existing account stays exactly as it is.
+                    </p>
+                    <Button
+                      asChild
+                      className="w-full rounded-full bg-ember text-white hover:brightness-110"
+                    >
+                      <Link to="/auth?returnTo=/community">
+                        Join the community
+                        <ArrowRight className="size-4" />
+                      </Link>
+                    </Button>
+                  </>
+                ) : editorStatus?.status === "active" ? (
+                  <>
+                    <p className="inline-flex items-center gap-2 text-sm font-semibold text-sage">
+                      <CheckCircle2 className="size-4" /> You&apos;re an editor
+                    </p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Your editor dashboard is ready with your assigned videos
+                      and earnings.
+                    </p>
+                    <Button asChild className="w-full rounded-full">
+                      <Link to="/editor">
+                        Open editor dashboard
+                        <ArrowRight className="size-4" />
+                      </Link>
+                    </Button>
+                  </>
+                ) : editorStatus?.status === "disabled" ? (
+                  <>
+                    <p className="text-sm font-semibold text-foreground">
+                      Editor access paused
+                    </p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Your community account still works, but editor access has
+                      been paused by the site owner.
+                    </p>
+                    <Button asChild variant="outline" className="w-full rounded-full">
+                      <Link to="/member">Go to the member area</Link>
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium text-foreground">
+                      Activate editor access
+                    </p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Uses your community profile and account. The dashboard is
+                      created automatically.
+                    </p>
+                    <Button
+                      className="w-full rounded-full bg-ember text-white hover:brightness-110"
+                      disabled={activating}
+                      onClick={() => void activateEditor()}
+                    >
+                      {activating ? "Activating…" : "Become an editor"}
+                      <Clapperboard className="size-4" />
+                    </Button>
+                    {activationError && (
+                      <p className="text-xs leading-relaxed text-destructive">
+                        {activationError}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
         <div className="grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:gap-14">
           {/* Suggestion form */}
           <Reveal>

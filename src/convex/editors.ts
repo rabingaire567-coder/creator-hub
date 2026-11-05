@@ -32,6 +32,7 @@ import {
   type VideoEarnings,
 } from "./editorLib";
 import { isAdmin, requireAdmin } from "./lib";
+import { ensureProfile } from "./members";
 import { DEFAULT_SETTINGS } from "./site";
 
 const MAX_POSTS = 1000;
@@ -124,6 +125,33 @@ async function loadEditorRequests(
     .take(MAX_REQUESTS);
 }
 
+/** Builds a valid, unused username from the member's display name/email. */
+async function uniqueEditorUsername(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  name: string,
+  email: string,
+): Promise<string> {
+  const source = (name || email.split("@")[0] || "editor")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9._-]+/g, ".")
+    .replace(/^[._-]+|[._-]+$/g, "")
+    .slice(0, 24);
+  const base =
+    source.length >= 3 ? source : `editor.${userId.slice(-6)}`;
+  let candidate = base;
+  for (let attempt = 2; attempt < 60; attempt += 1) {
+    const clash = await ctx.db
+      .query("editorProfiles")
+      .withIndex("by_username", (q) => q.eq("username", candidate))
+      .first();
+    if (!clash) return candidate;
+    candidate = `${base.slice(0, 25)}.${attempt}`;
+  }
+  return `editor.${userId.slice(-12)}`;
+}
+
 function lastSyncedAt(posts: Doc<"posts">[]): number | null {
   let latest = 0;
   for (const post of posts) {
@@ -135,6 +163,22 @@ function lastSyncedAt(posts: Doc<"posts">[]): number | null {
 // ---------------------------------------------------------------------------
 // Editor-side queries
 // ---------------------------------------------------------------------------
+
+/** Lightweight access check used by the community + editor gates. */
+export const myEditorStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) return null;
+    const editor = await findEditorForUser(ctx, userId);
+    if (!editor) return null;
+    return {
+      editorId: editor._id,
+      displayName: editor.displayName,
+      status: editor.status ?? "active",
+    };
+  },
+});
 
 /** Navbar helper: does the signed-in account have an active editor profile? */
 export const hasEditorProfile = query({
@@ -151,7 +195,7 @@ export const hasEditorProfile = query({
  * The editor's whole world in one live query: profile, settings, assigned
  * videos with their earnings breakdown, payout history and payment requests.
  * Returns null when the account isn't an editor (or is signed out) so the page
- * can show a clear "ask the owner" state instead of an error.
+ * can show a clear "activate editor access" state instead of an error.
  */
 export const myDashboard = query({
   args: {},
@@ -264,13 +308,71 @@ export const linkMyEditorProfile = mutation({
     const existing = await findEditorForUser(ctx, userId);
     if (!existing) {
       throw new Error(
-        "No editor profile uses this account's email. Ask the site owner to add you.",
+        "Activate editor access from the community page to create your editor profile.",
       );
     }
     if (existing.userId !== userId) {
       await ctx.db.patch(existing._id, { userId, updatedAt: Date.now() });
     }
     return true;
+  },
+});
+
+/**
+ * Creates the caller's editor profile from their existing community
+ * membership — the only way an editor profile is created. Joining the
+ * community is the recruitment gate; there is no separate application and no
+ * admin setup step. Idempotent, so a double click can't create duplicates.
+ */
+export const becomeEditor = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) {
+      throw new Error("Sign in or join the community before becoming an editor.");
+    }
+    const member = await ensureProfile(ctx, userId);
+    if (member.status === "disabled") {
+      throw new Error(
+        "Your community membership is disabled, so editor access can't be activated.",
+      );
+    }
+    const existing = await findEditorForUser(ctx, userId);
+    if (existing) {
+      if (existing.userId !== userId) {
+        await ctx.db.patch(existing._id, { userId, updatedAt: Date.now() });
+      }
+      return {
+        editorId: existing._id,
+        created: false,
+        status: existing.status ?? "active",
+      };
+    }
+    const email = member.email?.trim().toLowerCase();
+    if (!email) {
+      throw new Error(
+        "Add an email address to your account before becoming an editor.",
+      );
+    }
+    const now = Date.now();
+    const username = await uniqueEditorUsername(
+      ctx,
+      userId,
+      member.displayName,
+      email,
+    );
+    const editorId = await ctx.db.insert("editorProfiles", {
+      userId,
+      email,
+      displayName: member.displayName,
+      username,
+      bio: member.bio?.trim().slice(0, 400) || undefined,
+      photo: member.photo,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { editorId, created: true, status: "active" };
   },
 });
 
@@ -686,44 +788,6 @@ async function linkUserByEmail(
     .first();
   return user?._id;
 }
-
-export const adminCreateEditor = mutation({
-  args: {
-    displayName: v.string(),
-    username: v.string(),
-    email: v.optional(v.string()),
-    bio: v.optional(v.string()),
-    photo: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    await requireAdmin(ctx);
-    const displayName = args.displayName.trim().slice(0, 60);
-    if (displayName.length < 2) {
-      throw new Error("Display name must be at least 2 characters.");
-    }
-    const username = normaliseUsername(args.username);
-    const existing = await ctx.db
-      .query("editorProfiles")
-      .withIndex("by_username", (q) => q.eq("username", username))
-      .first();
-    if (existing) throw new Error("That username is already taken.");
-    const email = normaliseEmail(args.email);
-    const userId = await linkUserByEmail(ctx, email);
-    const now = Date.now();
-    const id = await ctx.db.insert("editorProfiles", {
-      userId,
-      email,
-      displayName,
-      username,
-      bio: args.bio?.trim().slice(0, 400) || undefined,
-      photo: validatePhoto(args.photo),
-      status: "active",
-      createdAt: now,
-      updatedAt: now,
-    });
-    return id;
-  },
-});
 
 export const adminUpdateEditor = mutation({
   args: {

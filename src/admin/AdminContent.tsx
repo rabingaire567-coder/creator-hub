@@ -336,7 +336,7 @@ function PostEditor({
               </Select>
               {editorOptions && editorOptions.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  No editors yet — add one under Editors first.
+                  No editors yet — community members appear here after they activate editor access.
                 </p>
               )}
             </div>

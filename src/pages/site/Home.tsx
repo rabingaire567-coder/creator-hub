@@ -8,6 +8,7 @@ import {
   BookOpen,
   Boxes,
   Building2,
+  Clapperboard,
   Code2,
   Compass,
   GraduationCap,
@@ -92,6 +93,10 @@ export default function Home() {
   const projects = useQuery(api.projects.listProjects, { page: 1 });
   const socialLinks = useQuery(api.social.listSocialLinks);
   const reduced = useReducedMotion();
+  const editorRate =
+    typeof settings?.editorRatePerThousand === "number"
+      ? settings.editorRatePerThousand
+      : 1;
 
   // Single source of truth: the admin homepage writes stats/aboutSections/
   // timeline as JSON strings (site.ts) and reads/writes the hero/intro/buttons
@@ -350,6 +355,73 @@ export default function Home() {
             />
           )}
         </div>
+      </section>
+
+      {/* ========================= BECOME AN EDITOR ========================= */}
+      <section className="mx-auto w-full max-w-6xl px-4 pb-20 sm:px-6">
+        <Reveal>
+          <div className="grain relative overflow-hidden rounded-3xl border border-ember/25 bg-gradient-to-br from-ember/15 via-card to-gold/10 p-7 sm:p-10">
+            <div className="absolute -top-20 -right-20 size-64 rounded-full bg-ember/20 blur-3xl" />
+            <div className="relative grid gap-9 lg:grid-cols-[1.25fr_1fr] lg:items-center">
+              <div>
+                <span className="inline-flex items-center gap-2 rounded-full border border-ember/30 bg-ember/10 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-ember uppercase">
+                  <Clapperboard className="size-3.5" /> Paid editor programme
+                </span>
+                <h2 className="font-display mt-5 text-3xl font-semibold tracking-tight text-foreground text-balance sm:text-4xl">
+                  Become an Editor
+                </h2>
+                <p className="mt-4 max-w-xl leading-relaxed text-muted-foreground">
+                  Love editing? Join the community and turn that craft into
+                  income. Videos assigned to you earn Rs. {editorRate} per 1,000
+                  eligible views — with Creator Hub rating bonuses and manual
+                  eSewa payouts requested through WhatsApp.
+                </p>
+                <div className="mt-7 flex flex-wrap items-center gap-4">
+                  <CtaLink href="/community">
+                    Become an Editor
+                    <ArrowRight className="size-4" />
+                  </CtaLink>
+                  <span className="text-xs leading-relaxed text-muted-foreground">
+                    Uses the existing community account.
+                    <br />
+                    No separate application or new login.
+                  </span>
+                </div>
+              </div>
+
+              <ol className="space-y-4 rounded-2xl border border-border/70 bg-background/50 p-5">
+                {[
+                  {
+                    title: "Join the community",
+                    body: "Create your free account on the Join Community page — the same membership you already use.",
+                  },
+                  {
+                    title: "Activate editor access",
+                    body: "One click on the community page creates your editor profile and private dashboard.",
+                  },
+                  {
+                    title: "Get videos and get paid",
+                    body: "Assigned videos track views, rating and earnings. Request a payout once you reach the minimum.",
+                  },
+                ].map((step, index) => (
+                  <li key={step.title} className="flex gap-3">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-ember/15 text-xs font-bold text-ember">
+                      {index + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {step.title}
+                      </p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                        {step.body}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </Reveal>
       </section>
 
       {/* ============================ STATS ============================ */}
